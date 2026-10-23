@@ -163,3 +163,11 @@ async def test_jwt_expired_token_rejected(monkeypatch):
     )
     with pytest.raises(AuthenticationError, match="Authentication token has expired"):
         await security.get_current_user(authorization=f"Bearer {token}")
+
+
+@pytest.mark.asyncio
+async def test_rls_session_context_setting(db_session):
+    """ISSUE-007: Verify set_user_session_context executes cleanly without errors."""
+    from app.db.session import set_user_session_context
+
+    await set_user_session_context(db_session, user_id="user-rls-test-777")
