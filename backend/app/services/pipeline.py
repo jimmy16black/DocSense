@@ -27,11 +27,11 @@ restart) is idempotent. ``recover_stale_jobs`` performs that sweep.
 import asyncio
 import time
 from collections.abc import Callable, Coroutine
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 
 from app.core.logging import get_logger
 from app.db.session import async_session_factory, commit_now
@@ -187,7 +187,7 @@ async def _run(session, document: Document) -> None:
 
     # Persist page text (per-page raw_text powers provenance & FTS later).
     await session.execute(
-        DocumentPage.__table__.delete().where(DocumentPage.document_id == document.id)
+        delete(DocumentPage).where(DocumentPage.document_id == document.id)
     )
     for page_num, text in pages:
         session.add(
@@ -207,11 +207,9 @@ async def _run(session, document: Document) -> None:
     )
 
     # Replace prior derived rows so re-processing is idempotent.
+    await session.execute(delete(Citation).where(Citation.document_id == document.id))
     await session.execute(
-        Citation.__table__.delete().where(Citation.document_id == document.id)
-    )
-    await session.execute(
-        Extraction.__table__.delete().where(Extraction.document_id == document.id)
+        delete(Extraction).where(Extraction.document_id == document.id)
     )
     extraction = Extraction(
         document_id=document.id,
@@ -250,7 +248,7 @@ async def _run(session, document: Document) -> None:
 
     chunks_data = pdf_extractor_service.chunk_text(pages)
     await session.execute(
-        DocumentChunk.__table__.delete().where(DocumentChunk.document_id == document.id)
+        delete(DocumentChunk).where(DocumentChunk.document_id == document.id)
     )
     chunk_rows: list[DocumentChunk] = []
     for ch in chunks_data:
@@ -303,7 +301,7 @@ async def recover_stale_jobs(
     Swept periodically from the FastAPI lifespan.
     """
     worker = worker or pipeline_worker
-    cutoff = datetime.now(timezone.utc) - timedelta(seconds=stale_seconds)
+    cutoff = datetime.now(UTC) - timedelta(seconds=stale_seconds)
     query = select(Document.id).where(
         Document.status.in_(
             [

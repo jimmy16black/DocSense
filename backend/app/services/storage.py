@@ -1,6 +1,6 @@
 import hashlib
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import boto3
 from botocore.config import Config
@@ -66,7 +66,7 @@ class StorageService:
         metadata is at least partially enforced by storage itself (ISSUE-002).
         """
         exp = expires_in_seconds or settings.R2_PRESIGNED_EXPIRATION_SECONDS
-        expires_at = datetime.now(timezone.utc) + timedelta(seconds=exp)
+        expires_at = datetime.now(UTC) + timedelta(seconds=exp)
 
         if not self.client:
             # Fallback for local mock/dev if R2 credentials are not set
@@ -121,9 +121,7 @@ class StorageService:
             code = int(e.response.get("ResponseMetadata", {}).get("HTTPStatusCode", 0))
             if code == 404:
                 return ObjectStat(exists=False)
-            logger.error(
-                "HEAD object failed", error=str(e), storage_path=storage_path
-            )
+            logger.error("HEAD object failed", error=str(e), storage_path=storage_path)
             raise
         return ObjectStat(
             exists=True,

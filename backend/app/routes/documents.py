@@ -352,9 +352,7 @@ async def process_document(
             job_id=job_id,
             document_id=document.id,
             status="ACCEPTED",
-            message="Processing started. Poll /documents/{}/status for progress.".format(
-                document.id
-            ),
+            message=f"Processing started. Poll /documents/{document.id}/status for progress.",
         ),
     )
 
