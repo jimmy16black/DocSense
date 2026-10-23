@@ -146,7 +146,7 @@ class OfflineQueueService {
 
       case QueueItemType.updateAction:
         await apiService.updateAction(
-          actionId: item.payload['actionId'] as String,
+          item.payload['actionId'] as String,
           status: item.payload['status'] as String?,
           notes: item.payload['notes'] as String?,
         );
