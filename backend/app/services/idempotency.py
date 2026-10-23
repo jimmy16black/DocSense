@@ -121,7 +121,9 @@ async def idempotency_guard(
     scope = _scope(request, user_id)
 
     # Opportunistic TTL purge keeps the table bounded without a cron job.
-    await db.execute(delete(IdempotencyKeyRecord).where(IdempotencyKeyRecord.expires_at < datetime.now(UTC)))
+    await db.execute(
+        delete(IdempotencyKeyRecord).where(IdempotencyKeyRecord.expires_at < datetime.now(UTC))
+    )
 
     existing = (
         await db.execute(
@@ -137,7 +139,7 @@ async def idempotency_guard(
             logger.info("idempotency_replay", extra={"scope": scope})
             raise HTTPException(
                 status_code=existing.response_status or 200,
-                content=json.loads(existing.response_body),
+                detail=json.loads(existing.response_body),
                 headers={"Idempotent-Replay": "true"},
             )
         raise IdempotencyConflictError()

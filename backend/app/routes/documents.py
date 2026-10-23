@@ -1,6 +1,7 @@
 import hashlib
 import re
 import uuid
+from typing import Any
 
 from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy import func, or_, select
@@ -19,7 +20,7 @@ from app.core.security import CurrentUser, get_current_user
 from app.db.session import commit_now, get_db_session
 from app.models.document import Citation, Document, DocumentStatus, Extraction
 from app.schemas.citation import CitationSchema
-from app.schemas.common import APIResponse, PageMeta, PagedData
+from app.schemas.common import APIResponse, PagedData, PageMeta
 from app.schemas.document import (
     DocumentEvent,
     DocumentProcessRequest,
@@ -309,7 +310,7 @@ async def process_document(
 
     # Idempotency: already completed -> no new job.
     if document.status == DocumentStatus.COMPLETED and not req.force_reprocess:
-        resp = APIResponse(
+        resp: APIResponse[DocumentProcessResponse] = APIResponse(
             success=True,
             data=DocumentProcessResponse(
                 job_id=f"job-{document.id}-cached",
@@ -494,11 +495,20 @@ async def get_document(
 @router.get("", response_model=APIResponse[PagedData[DocumentResponse]])
 async def list_documents(
     page: int = Query(1, ge=1, description="1-based page number"),
-    page_size: int = Query(20, ge=1, le=100, alias="pageSize", description="Items per page (max 100)"),
+    page_size: int = Query(
+        20, ge=1, le=100, alias="pageSize", description="Items per page (max 100)"
+    ),
     status: str | None = Query(None, description="Filter by lifecycle status (e.g. COMPLETED)"),
-    document_type: str | None = Query(None, alias="documentType", description="Filter by extracted document type"),
-    search: str | None = Query(None, max_length=200, description="Case-insensitive title/file-name search"),
-    sort: str = Query("-created_at", description="Sort key: created_at | -created_at | title | -title | confidence_score | -confidence_score"),
+    document_type: str | None = Query(
+        None, alias="documentType", description="Filter by extracted document type"
+    ),
+    search: str | None = Query(
+        None, max_length=200, description="Case-insensitive title/file-name search"
+    ),
+    sort: str = Query(
+        "-created_at",
+        description="Sort key: created_at | -created_at | title | -title | confidence_score | -confidence_score",
+    ),
     current_user: CurrentUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ):
@@ -538,14 +548,18 @@ async def list_documents(
         "confidence_score": Document.confidence_score.asc(),
         "-confidence_score": Document.confidence_score.desc(),
     }
-    order = sort_map.get(sort, Document.created_at.desc())
+    order: Any = sort_map.get(sort, Document.created_at.desc())
 
     total = (
         await db.execute(select(func.count()).select_from(Document).where(*conds))
     ).scalar_one()
 
     result = await db.execute(
-        select(Document).where(*conds).order_by(order).offset((page - 1) * page_size).limit(page_size)
+        select(Document)
+        .where(*conds)
+        .order_by(order)
+        .offset((page - 1) * page_size)
+        .limit(page_size)
     )
     docs = list(result.scalars().all())
 
@@ -621,7 +635,7 @@ async def ask_question(
         question=req.question,
     )
 
-    resp = APIResponse(success=True, data=ans)
+    resp: APIResponse[AskResponse] = APIResponse(success=True, data=ans)
     await save_idempotent_response(db, request, current_user.id, resp)
     return resp
 
@@ -666,7 +680,7 @@ async def compare_documents(
         ),
     ]
 
-    resp = APIResponse(
+    resp: APIResponse[CompareResponse] = APIResponse(
         success=True,
         data=CompareResponse(
             summary=f"Compared {len(documents)} documents successfully.",

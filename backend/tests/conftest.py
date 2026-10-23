@@ -107,6 +107,7 @@ async def client_no_user_override(
     ``Authorization: Bearer test-token-<user-id>`` to act as arbitrary test
     identities — required for cross-tenant isolation tests (ISSUE-016).
     """
+
     async def override_get_db():
         yield db_session
 

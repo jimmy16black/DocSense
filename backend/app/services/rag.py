@@ -157,7 +157,12 @@ class RAGService:
     def _pgvector_available(db: AsyncSession) -> bool:
         """pgvector's ``<=>`` operator only exists on PostgreSQL."""
         try:
-            return db.bind.dialect.name == "postgresql"
+            bind = db.bind
+            return bool(
+                bind is not None
+                and getattr(bind, "dialect", None) is not None
+                and bind.dialect.name == "postgresql"
+            )
         except Exception:
             return False
 

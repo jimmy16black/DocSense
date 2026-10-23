@@ -145,18 +145,27 @@ async def test_keyword_search_ranks_by_term_coverage(db_session, mock_current_us
     uid = mock_current_user.id
     rows = [
         DocumentChunk(
-            id=uuid_mod.uuid4(), document_id=doc_id, user_id=uid,
-            page_number=1, chunk_index=0,
+            id=uuid_mod.uuid4(),
+            document_id=doc_id,
+            user_id=uid,
+            page_number=1,
+            chunk_index=0,
             content="The premium renewal date is 15 April each policy year.",
         ),
         DocumentChunk(
-            id=uuid_mod.uuid4(), document_id=doc_id, user_id=uid,
-            page_number=2, chunk_index=1,
+            id=uuid_mod.uuid4(),
+            document_id=doc_id,
+            user_id=uid,
+            page_number=2,
+            chunk_index=1,
             content="Claim settlement requires original hospital discharge summaries.",
         ),
         DocumentChunk(
-            id=uuid_mod.uuid4(), document_id=doc_id, user_id=uid,
-            page_number=3, chunk_index=2,
+            id=uuid_mod.uuid4(),
+            document_id=doc_id,
+            user_id=uid,
+            page_number=3,
+            chunk_index=2,
             content="Premium payment can be made via UPI, card or auto-debit mandate.",
         ),
     ]
@@ -183,8 +192,11 @@ async def test_retrieve_hybrid_returns_relevant_topk(db_session, mock_current_us
         topic = "deductible" if i % 5 == 0 else "boilerplate lorem text about general matters"
         rows.append(
             DocumentChunk(
-                id=uuid_mod.uuid4(), document_id=doc_id, user_id=uid,
-                page_number=i + 1, chunk_index=i,
+                id=uuid_mod.uuid4(),
+                document_id=doc_id,
+                user_id=uid,
+                page_number=i + 1,
+                chunk_index=i,
                 content=f"The {topic} clause number {i} applies here.",
             )
         )

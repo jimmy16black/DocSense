@@ -186,9 +186,7 @@ async def _run(session, document: Document) -> None:
         )
 
     # Persist page text (per-page raw_text powers provenance & FTS later).
-    await session.execute(
-        delete(DocumentPage).where(DocumentPage.document_id == document.id)
-    )
+    await session.execute(delete(DocumentPage).where(DocumentPage.document_id == document.id))
     for page_num, text in pages:
         session.add(
             DocumentPage(
@@ -208,9 +206,7 @@ async def _run(session, document: Document) -> None:
 
     # Replace prior derived rows so re-processing is idempotent.
     await session.execute(delete(Citation).where(Citation.document_id == document.id))
-    await session.execute(
-        delete(Extraction).where(Extraction.document_id == document.id)
-    )
+    await session.execute(delete(Extraction).where(Extraction.document_id == document.id))
     extraction = Extraction(
         document_id=document.id,
         user_id=document.user_id,
@@ -247,9 +243,7 @@ async def _run(session, document: Document) -> None:
     await commit_now(session)
 
     chunks_data = pdf_extractor_service.chunk_text(pages)
-    await session.execute(
-        delete(DocumentChunk).where(DocumentChunk.document_id == document.id)
-    )
+    await session.execute(delete(DocumentChunk).where(DocumentChunk.document_id == document.id))
     chunk_rows: list[DocumentChunk] = []
     for ch in chunks_data:
         row = DocumentChunk(

@@ -1,5 +1,6 @@
 import json
 import re
+from typing import Any
 
 from app.core.config import get_settings
 from app.core.logging import get_logger
@@ -152,7 +153,7 @@ class AIGatewayService:
         """
         api_key = None
         base_url = None
-        client_kwargs = {}
+        client_kwargs: dict[str, Any] = {}
 
         if self.portkey_client is not None:
             api_key = self.portkey_api_key

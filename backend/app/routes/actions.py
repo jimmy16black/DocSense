@@ -52,7 +52,7 @@ async def create_reminder(
     db.add(action)
     await commit_now(db)  # ISSUE-001: durable write before success response
 
-    resp = APIResponse(
+    resp: APIResponse[ActionResponse] = APIResponse(
         success=True,
         data=ActionResponse.model_validate(action),
         message="Reminder created successfully.",

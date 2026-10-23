@@ -54,12 +54,18 @@ async def test_cross_tenant_document_isolation(client_no_user_override):
     alice = "test-token-alice-0001"
     bob = "test-token-bob-0002"
 
-    alice_doc = await _upload_completed_doc(client_no_user_override, alice, "alice_policy.pdf", "Alice Star Health Policy")
+    alice_doc = await _upload_completed_doc(
+        client_no_user_override, alice, "alice_policy.pdf", "Alice Star Health Policy"
+    )
     await _upload_completed_doc(client_no_user_override, bob, "bob_invoice.pdf", "Bob GST Invoice")
 
     # List isolation: each user sees exactly their own document(s).
-    a_list = await client_no_user_override.get("/api/v1/documents", headers={"Authorization": f"Bearer {alice}"})
-    b_list = await client_no_user_override.get("/api/v1/documents", headers={"Authorization": f"Bearer {bob}"})
+    a_list = await client_no_user_override.get(
+        "/api/v1/documents", headers={"Authorization": f"Bearer {alice}"}
+    )
+    b_list = await client_no_user_override.get(
+        "/api/v1/documents", headers={"Authorization": f"Bearer {bob}"}
+    )
     assert a_list.status_code == 200 and b_list.status_code == 200
     a_ids = [d["id"] for d in a_list.json()["data"]["items"]]
     b_ids = [d["id"] for d in b_list.json()["data"]["items"]]
@@ -81,7 +87,9 @@ async def test_cross_tenant_document_isolation(client_no_user_override):
 
     # Process endpoint isolation.
     proc = await client_no_user_override.post(
-        f"/api/v1/documents/{alice_doc}/process", json={}, headers={"Authorization": f"Bearer {bob}"}
+        f"/api/v1/documents/{alice_doc}/process",
+        json={},
+        headers={"Authorization": f"Bearer {bob}"},
     )
     assert proc.status_code == 403
 
@@ -101,10 +109,14 @@ async def test_search_never_leaks_across_tenants(client_no_user_override):
     """A search query matching another tenant's title must return nothing."""
     alice = "test-token-alice-0003"
     bob = "test-token-bob-0004"
-    await _upload_completed_doc(client_no_user_override, alice, "quantum_policy.pdf", "Quantum term paper")
+    await _upload_completed_doc(
+        client_no_user_override, alice, "quantum_policy.pdf", "Quantum term paper"
+    )
 
     res = await client_no_user_override.get(
-        "/api/v1/documents", params={"search": "quantum"}, headers={"Authorization": f"Bearer {bob}"}
+        "/api/v1/documents",
+        params={"search": "quantum"},
+        headers={"Authorization": f"Bearer {bob}"},
     )
     assert res.status_code == 200
     data = res.json()["data"]
@@ -117,9 +129,16 @@ async def test_pagination_bounds_and_envelope(client_no_user_override):
     """page/pageSize behave correctly; pageSize > 100 rejected; envelope fields present."""
     token = {"Authorization": "Bearer test-token-paging-0005"}
     for i in range(3):
-        await _upload_completed_doc(client_no_user_override, token["Authorization"].split()[1], f"doc_{i}.pdf", f"Doc number {i}")
+        await _upload_completed_doc(
+            client_no_user_override,
+            token["Authorization"].split()[1],
+            f"doc_{i}.pdf",
+            f"Doc number {i}",
+        )
 
-    p1 = await client_no_user_override.get("/api/v1/documents", params={"page": 1, "pageSize": 2}, headers=token)
+    p1 = await client_no_user_override.get(
+        "/api/v1/documents", params={"page": 1, "pageSize": 2}, headers=token
+    )
     assert p1.status_code == 200
     body = p1.json()["data"]
     assert len(body["items"]) == 2
@@ -129,7 +148,9 @@ async def test_pagination_bounds_and_envelope(client_no_user_override):
     assert pg["hasNext"] is True
     assert pg["page"] == 1
 
-    p2 = await client_no_user_override.get("/api/v1/documents", params={"page": 2, "pageSize": 2}, headers=token)
+    p2 = await client_no_user_override.get(
+        "/api/v1/documents", params={"page": 2, "pageSize": 2}, headers=token
+    )
     body2 = p2.json()["data"]
     assert len(body2["items"]) == 1
     assert body2["pagination"]["hasNext"] is False
@@ -139,7 +160,9 @@ async def test_pagination_bounds_and_envelope(client_no_user_override):
     ids2 = {d["id"] for d in body2["items"]}
     assert ids1.isdisjoint(ids2)
 
-    bad = await client_no_user_override.get("/api/v1/documents", params={"pageSize": 500}, headers=token)
+    bad = await client_no_user_override.get(
+        "/api/v1/documents", params={"pageSize": 500}, headers=token
+    )
     assert bad.status_code == 422
 
     zero = await client_no_user_override.get("/api/v1/documents", params={"page": 0}, headers=token)
@@ -149,23 +172,37 @@ async def test_pagination_bounds_and_envelope(client_no_user_override):
 @pytest.mark.asyncio
 async def test_filter_sort_and_search_semantics(client_no_user_override):
     token = {"Authorization": "Bearer test-token-filter-0006"}
-    await _upload_completed_doc(client_no_user_override, token["Authorization"].split()[1], "star_health.pdf", "Star health")
-    await _upload_completed_doc(client_no_user_override, token["Authorization"].split()[1], "gst_bill.pdf", "GST bill")
+    await _upload_completed_doc(
+        client_no_user_override, token["Authorization"].split()[1], "star_health.pdf", "Star health"
+    )
+    await _upload_completed_doc(
+        client_no_user_override, token["Authorization"].split()[1], "gst_bill.pdf", "GST bill"
+    )
 
-    s = await client_no_user_override.get("/api/v1/documents", params={"search": "gst"}, headers=token)
+    s = await client_no_user_override.get(
+        "/api/v1/documents", params={"search": "gst"}, headers=token
+    )
     items = s.json()["data"]["items"]
     assert [d["fileName"] for d in items] == ["gst_bill.pdf"]
 
     # Search with LIKE wildcards must be treated literally, not as patterns.
-    w = await client_no_user_override.get("/api/v1/documents", params={"search": "%"}, headers=token)
+    w = await client_no_user_override.get(
+        "/api/v1/documents", params={"search": "%"}, headers=token
+    )
     assert w.json()["data"]["items"] == []
 
-    st = await client_no_user_override.get("/api/v1/documents", params={"status": "uploaded"}, headers=token)
+    st = await client_no_user_override.get(
+        "/api/v1/documents", params={"status": "uploaded"}, headers=token
+    )
     assert st.json()["data"]["pagination"]["total"] == 2
 
-    none = await client_no_user_override.get("/api/v1/documents", params={"status": "completed"}, headers=token)
+    none = await client_no_user_override.get(
+        "/api/v1/documents", params={"status": "completed"}, headers=token
+    )
     assert none.json()["data"]["items"] == []
 
-    asc = await client_no_user_override.get("/api/v1/documents", params={"sort": "title"}, headers=token)
+    asc = await client_no_user_override.get(
+        "/api/v1/documents", params={"sort": "title"}, headers=token
+    )
     titles = [d["title"] for d in asc.json()["data"]["items"]]
     assert titles == sorted(titles)
