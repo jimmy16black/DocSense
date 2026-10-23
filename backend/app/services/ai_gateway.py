@@ -8,20 +8,59 @@ from app.core.logging import get_logger
 logger = get_logger("ai_gateway")
 settings = get_settings()
 
-# Basic PII regex patterns for zero-dep fast redaction
-PII_PATTERNS = [
-    (r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,7}\b", "[EMAIL_REDACTED]"),
-    (r"\b(?:\+91|91)?[6-9]\d{9}\b", "[PHONE_REDACTED]"),
-    (r"\b[2-9]{1}[0-9]{3}\s[0-9]{4}\s[0-9]{4}\b", "[AADHAAR_REDACTED]"),
-    (r"\b[A-Z]{5}[0-9]{4}[A-Z]{1}\b", "[PAN_REDACTED]"),
-    (r"\b\d{2}[A-Z]{5}\d{4}[A-Z]{1}[A-Z\d]{1}[Z]{1}[A-Z\d]{1}\b", "[GSTIN_REDACTED]"),
+# Comprehensive PII patterns for Indian financial & identity tokens (ISSUE-009)
+PII_PATTERNS: list[tuple[str, str, str]] = [
+    (r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,7}\b", "[EMAIL_REDACTED]", "EMAIL"),
+    (r"(?:\+91[\-\s]?|\b)[6-9]\d{9}\b", "[PHONE_REDACTED]", "PHONE"),
+    (r"\b[2-9]\d{3}[\s\-]\d{4}[\s\-]\d{4}\b", "[AADHAAR_REDACTED]", "AADHAAR"),
+    (r"\b[A-Z]{5}[0-9]{4}[A-Z]{1}\b", "[PAN_REDACTED]", "PAN"),
+    (r"\b\d{2}[A-Z]{5}\d{4}[A-Z]{1}[A-Z\d]{1}[Z]{1}[A-Z\d]{1}\b", "[GSTIN_REDACTED]", "GSTIN"),
+    (r"\b[A-Za-z][1-9]\d{6}\b", "[PASSPORT_REDACTED]", "PASSPORT"),
+    (
+        r"\b[A-Z]{2}[-\s]?\d{2}[-\s]?(?:19|20)\d{2}\d{7}\b",
+        "[DRIVING_LICENSE_REDACTED]",
+        "DRIVING_LICENSE",
+    ),
+    (r"\b[A-Z]{4}0[A-Z0-9]{6}\b", "[IFSC_REDACTED]", "IFSC"),
+    (r"\b[a-zA-Z0-9.\-_]{2,64}@[a-zA-Z]{2,32}\b", "[UPI_REDACTED]", "UPI_VPA"),
+    (
+        r"(?i)\b(?:dob|date\s+of\s+birth|birth\s+date)[:\s]+(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})\b",
+        "[DOB_REDACTED]",
+        "DOB",
+    ),
+    (
+        r"\b[A-Z]{2}[-\s]?\d{1,2}[-\s]?[A-Z]{1,3}[-\s]?\d{4}\b",
+        "[VEHICLE_NO_REDACTED]",
+        "VEHICLE_REGISTRATION",
+    ),
+    (
+        r"(?i)\b(?:a/c|acct|account(?:\s*no)?[:\s]*)(\d{9,18})\b",
+        "[ACCOUNT_NUMBER_REDACTED]",
+        "BANK_ACCOUNT",
+    ),
 ]
 
 
-def redact_pii(text: str) -> str:
+def redact_pii_with_details(text: str) -> tuple[str, dict[str, int]]:
+    """Redacts PII tokens from text and returns the redacted string along with
+    a counts dictionary of masked entities (ISSUE-009)."""
+    counts: dict[str, int] = {}
     redacted = text
-    for pattern, replacement in PII_PATTERNS:
-        redacted = re.sub(pattern, replacement, redacted)
+
+    for pattern, replacement, entity_name in PII_PATTERNS:
+        matches = len(re.findall(pattern, redacted))
+        if matches > 0:
+            counts[entity_name] = counts.get(entity_name, 0) + matches
+            redacted = re.sub(pattern, replacement, redacted)
+
+    if counts:
+        logger.info("PII redaction performed", total_masked=sum(counts.values()), entities=counts)
+
+    return redacted, counts
+
+
+def redact_pii(text: str) -> str:
+    redacted, _ = redact_pii_with_details(text)
     return redacted
 
 

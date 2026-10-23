@@ -3,7 +3,7 @@ import pytest
 from app.models.document import DocumentChunk
 from app.schemas.citation import CitationSchema
 from app.schemas.extraction import ExtractionEnvelope
-from app.services.ai_gateway import redact_pii
+from app.services.ai_gateway import redact_pii, redact_pii_with_details
 from app.services.extractor import pdf_extractor_service
 from app.services.rag import RAGService, rag_service
 from app.services.storage import storage_service
@@ -22,6 +22,25 @@ def test_pii_redaction():
     assert "[AADHAAR_REDACTED]" in redacted
     assert "jane.doe@example.com" not in redacted
     assert "ABCDE1234F" not in redacted
+
+
+def test_pii_redaction_indian_tokens():
+    """ISSUE-009: Test comprehensive Indian identity & financial tokens redaction."""
+    sample_text = (
+        "Passport: A1234567, Driving License: DL-1420110012345, IFSC: SBIN0001234, "
+        "UPI: user@okaxis, DOB: 12/04/1988, Vehicle: DL01AB1234, Account: 12345678901234."
+    )
+    redacted, counts = redact_pii_with_details(sample_text)
+    assert "[PASSPORT_REDACTED]" in redacted
+    assert "[DRIVING_LICENSE_REDACTED]" in redacted
+    assert "[IFSC_REDACTED]" in redacted
+    assert "[UPI_REDACTED]" in redacted
+    assert "[DOB_REDACTED]" in redacted
+    assert "[VEHICLE_NO_REDACTED]" in redacted
+    assert "[ACCOUNT_NUMBER_REDACTED]" in redacted
+    assert counts["PASSPORT"] == 1
+    assert counts["IFSC"] == 1
+    assert counts["UPI_VPA"] == 1
 
 
 def test_chunk_text():
