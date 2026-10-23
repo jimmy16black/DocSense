@@ -46,7 +46,7 @@ class TestSettingsValidation:
 
     def test_production_with_defaults_fails_aggregated(self):
         with pytest.raises(ValidationError) as excinfo:
-            Settings(APP_ENV="production")
+            Settings(_env_file=None, APP_ENV="production")
         msg = str(excinfo.value)
         for expected in ("SECRET_KEY", "ALLOWED_ORIGINS", "SUPABASE_SERVICE_ROLE_KEY", "https"):
             assert expected in msg

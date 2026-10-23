@@ -41,13 +41,15 @@ class StorageService:
         self._mock_objects: dict[str, bytes] = {}
 
         if settings.R2_ACCESS_KEY_ID and settings.R2_SECRET_ACCESS_KEY and self.endpoint_url:
+            is_local = any(h in self.endpoint_url for h in ("localhost", "127.0.0.1", "minio"))
+            addressing_style = "path" if is_local else "virtual"
             self.client = boto3.client(
                 "s3",
                 endpoint_url=self.endpoint_url,
                 aws_access_key_id=settings.R2_ACCESS_KEY_ID,
                 aws_secret_access_key=settings.R2_SECRET_ACCESS_KEY,
-                region_name="auto",
-                config=Config(signature_version="s3v4", s3={"addressing_style": "virtual"}),
+                region_name="auto" if not is_local else "us-east-1",
+                config=Config(signature_version="s3v4", s3={"addressing_style": addressing_style}),
             )
 
     @property
@@ -79,14 +81,6 @@ class StorageService:
             "Key": storage_path,
             "ContentType": mime_type,
         }
-        if expected_size_bytes is not None:
-            # AWS SigV4 presign condition binding; ignored gracefully where
-            # unsupported — server-side HEAD verification remains the source
-            # of truth either way.
-            params["ContentLengthRange"] = {
-                "Start": max(expected_size_bytes - 1, 0),
-                "End": expected_size_bytes + 1,
-            }
 
         try:
             url = self.client.generate_presigned_url(

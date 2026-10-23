@@ -4,7 +4,11 @@ import os
 # ISSUE-006: the "test-token-*" auth bypass is OFF unless explicitly opted in.
 # The test suite opts in here (and only here) so CI keeps working while real
 # staging/QA deployments can never accept attacker-chosen identities.
-os.environ.setdefault("ALLOW_TEST_TOKENS", "true")
+os.environ["ALLOW_TEST_TOKENS"] = "true"
+os.environ["APP_ENV"] = "test"
+os.environ["R2_ACCESS_KEY_ID"] = ""
+os.environ["R2_SECRET_ACCESS_KEY"] = ""
+os.environ["R2_ENDPOINT_URL"] = ""
 
 from collections.abc import AsyncGenerator
 
@@ -17,8 +21,11 @@ from app.core.security import CurrentUser, get_current_user
 from app.db.base import Base
 from app.db.session import get_db_session
 from app.main import app
+from app.services.storage import storage_service
 
 settings = get_settings()
+storage_service.client = None
+storage_service._mock_objects.clear()
 
 # In-memory SQLite for testing
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
