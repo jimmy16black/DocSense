@@ -24,3 +24,9 @@ Per 02_DATA_MODEL_CONTRACTS + 08_ERROR_STATE_MACHINE: each state transition is a
 ## Evidence
 - `backend/app/db/session.py` lines 33–42
 - All handlers in `backend/app/routes/documents.py`, `actions.py`, `users.py` (grep `db.flush()` — zero `commit()` outside session teardown)
+
+---
+
+## ✅ Fix status (2026-10-23)
+
+Resolved in commit `e98d3e7` — fix implemented with regression tests; full suite green (19 passed). See REVIEW_FINDINGS.md changelog.

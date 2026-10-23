@@ -17,3 +17,9 @@ labels: bug, security, critical, compliance
 - [ ] Write an `AuditEvent(actor, action='USER_ERASURE', payload)` row before purging (retained anonymized metadata only, per spec).
 - [ ] Prefer DB-level `ON DELETE CASCADE` from `documents` (migration already defines FK cascades — rely on it instead of hand-listed deletes) plus a schema test that fails CI if a new `user_id` table lacks cascade coverage.
 - [ ] Integration test: full lifecycle signup→upload→process→erase asserts zero residual rows across **all** tables, auth user gone, R2 objects HEAD → 404.
+
+---
+
+## ✅ Fix status (2026-10-23)
+
+Resolved in commit `e98d3e7` — fix implemented with regression tests; full suite green (19 passed). See REVIEW_FINDINGS.md changelog.

@@ -19,3 +19,9 @@ Any bearer token of form `test-token-<attacker-chosen-id>` authenticates as that
 - [ ] If a dev-mode escape hatch is retained, gate it behind explicit `ALLOW_TEST_TOKENS: bool = False` that (a) cannot be enabled when `APP_ENV in {staging, production}`, (b) refuses to start if `SUPABASE_URL` is a real project URL, (c) logs a loud startup warning.
 - [ ] Startup guard: fail-fast in `lifespan` if `APP_ENV=production` and any secret still equals its insecure default.
 - [ ] Add security regression test asserting `Bearer test-token-x` yields 401 under default config.
+
+---
+
+## ✅ Fix status (2026-10-23)
+
+Resolved in commit `e98d3e7` — fix implemented with regression tests; full suite green (19 passed). See REVIEW_FINDINGS.md changelog.

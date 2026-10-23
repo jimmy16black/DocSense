@@ -109,3 +109,16 @@ Document_8 §8.6 mandates offline behavior (cached reading, disabled network act
 7. **Hardening:** INF-1/2, TEST-1/2.
 
 GitHub issue files: see `.github/issues/ISSUE-001 … ISSUE-016.md` (title = frontmatter `title:`, ready for `gh issue create --body-file`).
+
+---
+
+## Changelog — fixes applied
+
+### 2026-10-23 — commit `e98d3e7` (P0 batch 1: #001, #005, #006 + latent bug)
+- **#001 DB durability**: `commit_now()` helper added to `app/db/session.py`; every observable write in `documents.py` (upload-init, process pipeline incl. durable EXTRACTING/FAILED state transitions), `actions.py` (create/patch), and `users.py` (erasure) now commits before returning success. Request-scoped session commits deterministically.
+- **#005 DPDP erasure**: storage-delete failures are no longer swallowed — erasure aborts with retryable `ERASURE_STORAGE_FAILED`; Supabase Auth identity is deleted via service-role admin API; response honestly reports `authIdentityDeleted`. `storage_service.delete_file()` now raises on failure.
+- **#006 auth backdoor gated**: `test-token-*` accepted only when `ALLOW_TEST_TOKENS=true` (default false; validator refuses it in production). CI opts in via `tests/conftest.py`. Regression tests added both ways. Documented in `.env.example`.
+- **New latent bug found & fixed during verification**: `ValidationError` referenced nonexistent `HTTP_422_UNPROCESSABLE_CONTENT` → every validation error crashed as an unhandled 500 under the pinned starlette version. Fixed to `HTTP_422_UNPROCESSABLE_ENTITY`. (Two previously "passing" tests were actually never exercising the 422 path correctly.)
+- **Test suite**: 19 passed (was 17, +2 security regression tests).
+
+**Remaining P0**: #002 (upload completion verification), #003 (real ingestion pipeline replacing mock pages), #004 (hybrid RAG with real embeddings) — these require infra (worker queue, pgvector migration, AI gateway wiring) and are next in sequence.
