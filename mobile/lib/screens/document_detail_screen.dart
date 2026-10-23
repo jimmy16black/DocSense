@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/theme/app_theme.dart';
-import '../models/document_model.dart';
 import '../providers/documents_provider.dart';
 import '../widgets/citation_card.dart';
 import '../widgets/confidence_badge.dart';

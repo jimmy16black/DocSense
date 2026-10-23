@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import '../core/network/app_error.dart';
 import '../core/theme/app_theme.dart';
 import '../models/document_model.dart';
-import '../models/qa_model.dart';
 import '../services/api_service.dart';
 import '../widgets/citation_card.dart';
 import '../widgets/confidence_badge.dart';

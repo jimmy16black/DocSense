@@ -65,7 +65,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   MaterialPageRoute(builder: (_) => const UploadScreen()),
                 );
                 if (result == true) {
-                  ref.refresh(documentListProvider);
+                  ref.invalidate(documentListProvider);
                 }
               },
               backgroundColor: AppColors.primary,

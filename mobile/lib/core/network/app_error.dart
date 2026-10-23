@@ -109,13 +109,14 @@ class AppError implements Exception {
         case DioExceptionType.receiveTimeout:
           return const AppError(
             code: 'TIMEOUT',
-            userMessage: friendlyMessages['TIMEOUT']!,
+            userMessage: 'The request took too long. Please try again.',
             isRetryable: true,
           );
         case DioExceptionType.connectionError:
           return const AppError(
             code: 'NETWORK_ERROR',
-            userMessage: friendlyMessages['NETWORK_ERROR']!,
+            userMessage:
+                'No internet connection. Check your network and retry.',
             isRetryable: true,
           );
         default:

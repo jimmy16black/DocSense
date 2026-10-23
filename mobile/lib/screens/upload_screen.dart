@@ -1,8 +1,5 @@
 import 'dart:io' show File;
 
-import 'package:dio/dio.dart';
-
-import 'package:convert/convert.dart';
 import 'package:crypto/crypto.dart';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
@@ -165,7 +162,7 @@ class _UploadScreenState extends State<UploadScreen> {
               ),
               const SizedBox(height: AppSpacing.sm),
               DropdownButtonFormField<String>(
-                value: _documentType,
+                initialValue: _documentType,
                 decoration: const InputDecoration(),
                 items: const [
                   DropdownMenuItem(
