@@ -1,3 +1,6 @@
+import asyncio
+import os
+import sys
 import time
 import uuid
 from contextlib import asynccontextmanager
@@ -20,6 +23,7 @@ from app.core.logging import (
     setup_logging,
 )
 from app.routes import actions_router, documents_router, health_router, users_router
+from app.services.pipeline import pipeline_worker, start_periodic_recovery
 
 settings = get_settings()
 setup_logging(debug=settings.DEBUG)
@@ -33,7 +37,20 @@ async def lifespan(app: FastAPI):
         environment=settings.APP_ENV,
         version="0.1.0",
     )
+    recovery_task: asyncio.Task | None = None
+    # Crash-recovery sweep for documents stuck mid-pipeline after a restart
+    # (ISSUE-003). Disabled under pytest where the DB is ephemeral per test.
+    if os.getenv("PIPELINE_RECOVERY_ENABLED", "true").lower() in {"1", "true", "yes"} and not (
+        os.getenv("PYTEST_CURRENT_TEST") or "pytest" in sys.modules
+    ):
+        recovery_task = asyncio.create_task(start_periodic_recovery(), name="pipeline-recovery")
     yield
+    if recovery_task is not None:
+        recovery_task.cancel()
+    try:
+        await pipeline_worker.shutdown()
+    except TimeoutError:
+        logger.warning("Pipeline worker had unfinished jobs at shutdown; rows stay recoverable")
     logger.info("DocSense Backend shutting down")
 
 

@@ -17,19 +17,15 @@ from app.core.errors import (
 from app.core.logging import get_logger
 from app.core.security import CurrentUser, get_current_user
 from app.db.session import commit_now, get_db_session
-from app.models.document import (
-    Citation,
-    Document,
-    DocumentChunk,
-    DocumentStatus,
-    Extraction,
-)
+from app.models.document import Citation, Document, DocumentStatus, Extraction
 from app.schemas.citation import CitationSchema
 from app.schemas.common import APIResponse
 from app.schemas.document import (
+    DocumentEvent,
     DocumentProcessRequest,
     DocumentProcessResponse,
     DocumentResponse,
+    DocumentStatusResponse,
     DocumentUploadInitRequest,
     DocumentUploadInitResponse,
     UploadCompleteRequest,
@@ -38,6 +34,7 @@ from app.schemas.document import (
 from app.schemas.extraction import ExtractionEnvelope
 from app.schemas.qa import AskRequest, AskResponse, CompareRequest, CompareResponse, ComparisonItem
 from app.services.extractor import pdf_extractor_service
+from app.services.pipeline import STAGES, pipeline_worker, record_progress
 from app.services.rag import rag_service
 from app.services.storage import storage_service
 
@@ -265,16 +262,24 @@ async def complete_upload(
     )
 
 
-@router.post("/{document_id}/process", response_model=APIResponse[DocumentProcessResponse])
+@router.post(
+    "/{document_id}/process",
+    response_model=APIResponse[DocumentProcessResponse],
+    status_code=202,
+)
 async def process_document(
     document_id: uuid.UUID,
     req: DocumentProcessRequest,
     current_user: CurrentUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ):
-    """
-    Triggers asynchronous/pipeline extraction for a document.
-    Enforces user ownership, idempotency, and error state transitions.
+    """Enqueue real background ingestion for a document (ISSUE-003).
+
+    The HTTP handler ONLY validates ownership/lifecycle state and enqueues a
+    job; extraction, chunking and embedding happen in the background worker
+    against the actual verified bytes in storage. Clients track progress via
+    GET /documents/{id}/status. This replaces the previous synchronous
+    mock-page pipeline that fabricated results inside the request.
     """
     query = select(Document).where(Document.id == document_id)
     result = await db.execute(query)
@@ -299,7 +304,7 @@ async def process_document(
             "after correcting the upload."
         )
 
-    # Idempotency check: if already completed and not force reprocess
+    # Idempotency: already completed -> no new job.
     if document.status == DocumentStatus.COMPLETED and not req.force_reprocess:
         return APIResponse(
             success=True,
@@ -311,94 +316,85 @@ async def process_document(
             ),
         )
 
-    # Transition to VALIDATING -> EXTRACTING and persist the state change
-    # immediately (ISSUE-001: never rely on bare flush() for observable writes).
-    document.status = DocumentStatus.EXTRACTING
+    # Already queued/running -> don't double-enqueue (unless forced reprocess,
+    # which the pipeline handles idempotently by rebuilding derived rows).
+    in_flight = document.status in (
+        DocumentStatus.EXTRACTING,
+        DocumentStatus.CHUNKING,
+        DocumentStatus.EMBEDDING,
+        DocumentStatus.RETRYING,
+    )
+    if in_flight and not req.force_reprocess:
+        return APIResponse(
+            success=True,
+            data=DocumentProcessResponse(
+                job_id=f"job-{document.id}-inflight",
+                document_id=document.id,
+                status=document.status,
+                message="Processing already in progress.",
+            ),
+        )
+
+    # Mark QUEUED-equivalent (VALIDATING) durably BEFORE enqueue so a crash
+    # between response and job start still leaves a recoverable row
+    # (ISSUE-001 + stale-job recovery sweep).
+    document.status = DocumentStatus.VALIDATING
+    document.error_message = None
+    record_progress(document, "QUEUED", "Queued for processing")
     await commit_now(db)
 
-    try:
-        # Simulate extraction pipeline (or invoke workers/services)
-        # 1. Provide mock page text for offline / unit tests
-        mock_pages = [
-            (
-                1,
-                f"Document: {document.title}\nPolicy Schedule\nSum Insured: Rs. 10,00,000/- for Jane Doe.",
-            ),
-            (
-                2,
-                "Terms & Conditions\nSection 4.1: Pre-existing diseases covered after 24 consecutive months.",
-            ),
-        ]
-        document.page_count = len(mock_pages)
-
-        # 2. Extract structured envelope
-        envelope = await pdf_extractor_service.extract_structured_envelope(
-            pages=mock_pages,
-            document_type_hint=document.document_type or "INSURANCE_POLICY",
-        )
-
-        # 3. Save extraction
-        extraction = Extraction(
-            document_id=document.id,
-            user_id=current_user.id,
-            document_type=envelope.document_type,
-            confidence_score=envelope.confidence_score,
-            title=envelope.title,
-            summary_bullets=envelope.summary_bullets,
-            important_alerts=envelope.important_alerts,
-            suggested_questions=envelope.suggested_questions,
-            recommended_actions=envelope.recommended_actions,
-            payload=envelope.payload,
-        )
-        db.add(extraction)
-        await db.flush()  # populate extraction.id for citation FK below
-
-        # 4. Save citations
-        for c in envelope.citations:
-            citation_entry = Citation(
-                document_id=document.id,
-                extraction_id=extraction.id,
-                user_id=current_user.id,
-                page_number=c.page_number,
-                section_heading=c.section_heading,
-                exact_quote=c.exact_quote,
-                bounding_box=c.bounding_box,
-            )
-            db.add(citation_entry)
-
-        # 5. Create chunks
-        chunks_data = pdf_extractor_service.chunk_text(mock_pages)
-        for ch in chunks_data:
-            chunk_entry = DocumentChunk(
-                document_id=document.id,
-                user_id=current_user.id,
-                page_number=ch["page_number"],
-                chunk_index=ch["chunk_index"],
-                content=ch["content"],
-            )
-            db.add(chunk_entry)
-
-        document.status = DocumentStatus.COMPLETED
-        document.confidence_score = envelope.confidence_score
-        document.document_type = envelope.document_type
-        # Persist ALL pipeline results atomically before reporting success.
-        await commit_now(db)
-    except Exception as exc:
-        # Error-state transition per Document_8 state machine: FAILED is durable
-        # even when the rest of the transaction is rolled back.
-        document.status = DocumentStatus.FAILED
-        document.error_message = str(exc)[:2000]
-        await commit_now(db)
-        logger.error("Document processing failed", document_id=str(document_id), error=str(exc))
-        raise
+    job_id = f"job-{document.id}-{uuid.uuid4().hex[:8]}"
+    pipeline_worker.enqueue(document.id)
 
     return APIResponse(
         success=True,
         data=DocumentProcessResponse(
-            job_id=f"job-{document.id}-{uuid.uuid4().hex[:8]}",
+            job_id=job_id,
             document_id=document.id,
-            status=DocumentStatus.COMPLETED,
-            message="Document processed and indexed successfully.",
+            status="ACCEPTED",
+            message="Processing started. Poll /documents/{}/status for progress.".format(
+                document.id
+            ),
+        ),
+    )
+
+
+@router.get("/{document_id}/status", response_model=APIResponse[DocumentStatusResponse])
+async def get_document_status(
+    document_id: uuid.UUID,
+    current_user: CurrentUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+):
+    """Lightweight progress endpoint for the processing UX (ISSUE-003).
+
+    Returns the authoritative server-side stage + progress percentage and the
+    recent event trail. Mobile renders THIS — never a locally invented
+    progress bar (Document_8 §8.4).
+    """
+    query = select(Document).where(Document.id == document_id)
+    result = await db.execute(query)
+    document = result.scalar_one_or_none()
+
+    if not document:
+        raise ResourceNotFoundError(f"Document {document_id} not found.")
+    if document.user_id != current_user.id:
+        raise PermissionDeniedError("Access denied.")
+
+    events = (document.metadata_json or {}).get("progress_events", [])
+    latest = events[-1] if events else None
+    progress = STAGES.get(document.status, 0)
+    if latest:
+        progress = max(progress, int(latest.get("progressPercentage", 0)))
+
+    return APIResponse(
+        success=True,
+        data=DocumentStatusResponse(
+            document_id=document.id,
+            status=document.status,
+            progress_percentage=progress,
+            stage=latest.get("stage", document.status) if latest else document.status,
+            message=(latest.get("message") if latest else None) or document.error_message,
+            events=[DocumentEvent.model_validate(e) for e in events[-10:]],
         ),
     )
 

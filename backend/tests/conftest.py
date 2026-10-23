@@ -1,3 +1,4 @@
+import asyncio
 import os
 
 # ISSUE-006: the "test-token-*" auth bypass is OFF unless explicitly opted in.
@@ -76,8 +77,21 @@ async def client(
     app.dependency_overrides[get_db_session] = override_get_db
     app.dependency_overrides[get_current_user] = override_get_current_user
 
+    # ISSUE-003: route handlers enqueue background ingestion jobs. Point the
+    # worker at THIS test's ephemeral engine so the pipeline runs against the
+    # same in-memory DB (and drain it deterministically on teardown).
+    from app.services.pipeline import pipeline_worker
+
+    pipeline_worker.session_factory = TestSessionLocal
+    pipeline_worker._queue = asyncio.Queue()
+    pipeline_worker._tasks = set()
+
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac
 
+    try:
+        await pipeline_worker.drain(timeout=15.0)
+    except TimeoutError:
+        pass  # surfaced through assertions instead of hanging CI
     app.dependency_overrides.clear()

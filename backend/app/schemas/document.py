@@ -1,7 +1,8 @@
 from datetime import datetime
+from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.schemas.citation import CitationSchema
 from app.schemas.extraction import ExtractionEnvelope
@@ -68,14 +69,47 @@ class DocumentResponse(BaseModel):
 
 
 class DocumentEvent(BaseModel):
+    """One progress event in the pipeline trail (ISSUE-003).
+
+    ``timestamp`` is optional because events recorded on the document row may
+    predate timestamped logging; validation fills in "now" for them.
+    """
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    stage: str
+    status: str | None = None
+    step: str | None = None
+    progress_percentage: int = Field(0, alias="progressPercentage")
+    timestamp: datetime | None = Field(default=None, alias="timestamp")
+    message: str | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def _tolerant(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            data = dict(data)
+            data.setdefault("stage", data.get("status") or data.get("step") or "UNKNOWN")
+            ts = data.get("timestamp")
+            if isinstance(ts, str):
+                try:
+                    data["timestamp"] = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+                except ValueError:
+                    data["timestamp"] = None
+        return data
+
+
+class DocumentStatusResponse(BaseModel):
+    """Authoritative processing progress for polling clients (ISSUE-003)."""
+
     model_config = ConfigDict(populate_by_name=True)
 
     document_id: UUID = Field(..., alias="documentId")
     status: str
-    step: str
+    stage: str
     progress_percentage: int = Field(..., alias="progressPercentage")
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
     message: str | None = None
+    events: list[DocumentEvent] = Field(default_factory=list)
 
 
 class UploadCompleteRequest(BaseModel):

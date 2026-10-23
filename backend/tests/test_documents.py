@@ -108,21 +108,46 @@ async def test_document_full_lifecycle(client: AsyncClient):
     assert replay.status_code == 200
     assert replay.json()["data"]["message"] == "Upload already verified."
 
-    # 2. Process document
+    # 2. Process document -> async job accepted (ISSUE-003)
     process_res = await client.post(
         f"/api/v1/documents/{doc_id}/process",
         json={"forceReprocess": False},
     )
-    assert process_res.status_code == 200
+    assert process_res.status_code == 202
     proc_body = process_res.json()
-    assert proc_body["data"]["status"] == "COMPLETED"
+    assert proc_body["data"]["status"] == "ACCEPTED"
 
-    # 3. Retrieve document details
+    # 2b. Wait for the real background pipeline to finish, then poll status
+    from app.services.pipeline import pipeline_worker
+
+    await pipeline_worker.drain(timeout=15.0)
+
+    status_res = await client.get(f"/api/v1/documents/{doc_id}/status")
+    assert status_res.status_code == 200
+    sdata = status_res.json()["data"]
+    assert sdata["status"] == "COMPLETED"
+    assert sdata["progressPercentage"] == 100
+    assert [e["stage"] for e in sdata["events"]] == [
+        "QUEUED",
+        "EXTRACTING",
+        "CHUNKING",
+        "EMBEDDING",
+        "COMPLETED",
+    ]
+
+    # 2c. Re-processing a COMPLETED doc is idempotent (no new job)
+    replay_process = await client.post(
+        f"/api/v1/documents/{doc_id}/process", json={"forceReprocess": False}
+    )
+    assert replay_process.json()["data"]["message"] == "Document is already processed."
+
+    # 3. Retrieve document details — extraction must reflect REAL page text
     get_res = await client.get(f"/api/v1/documents/{doc_id}")
     assert get_res.status_code == 200
     doc_data = get_res.json()["data"]
     assert doc_data["id"] == doc_id
     assert doc_data["status"] == "COMPLETED"
+    assert doc_data["pageCount"] == 1  # real PDF has exactly one page
     assert doc_data["latestExtraction"] is not None
     assert len(doc_data["citations"]) > 0
 
