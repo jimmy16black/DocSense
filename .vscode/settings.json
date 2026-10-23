@@ -17,5 +17,7 @@
     "editor.formatOnSave": true,
     "editor.selectionHighlight": false,
     "editor.suggest.snippetsPreventQuickSuggestions": false
-  }
+  },
+  "dart.flutterSdkPath": "/Users/gautamkale/Docsense/flutter",
+  "dart.androidSdkPath": "/Users/gautamkale/Library/Android/sdk"
 }

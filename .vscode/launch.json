@@ -92,6 +92,7 @@
       "request": "launch",
       "program": "lib/main.dart",
       "cwd": "mobile",
+      "deviceId": "Pixel_7_API_34",
       "args": [
         "--dart-define=API_BASE_URL=http://10.0.2.2:8001"
       ]
