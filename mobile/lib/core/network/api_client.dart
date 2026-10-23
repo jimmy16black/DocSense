@@ -5,7 +5,10 @@ import 'package:uuid/uuid.dart';
 class ApiClient {
   static const String baseUrl = 'http://localhost:8000'; // Default for iOS simulator / web; 10.0.2.2 for Android
   final Dio dio;
-  final FlutterSecureStorage storage = const FlutterSecureStorage();
+  final FlutterSecureStorage storage = const FlutterSecureStorage(
+    aOptions: AndroidOptions(encryptedSharedPreferences: true),
+    iOptions: IOSOptions(accessibility: KeychainAccessibility.first_unlock),
+  );
 
   ApiClient({String? customBaseUrl})
     : dio = Dio(

@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import '../core/theme/app_theme.dart';
 import '../models/document_model.dart';
 import '../providers/documents_provider.dart';
+import '../widgets/offline_banner.dart';
 import 'document_detail_screen.dart';
 import 'upload_screen.dart';
 import 'compare_screen.dart';
@@ -32,9 +33,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ),
         ],
       ),
-      body: IndexedStack(
-        index: _currentIndex,
-        children: const [_DocumentsTab(), CompareScreen(), ActionsScreen()],
+      body: Column(
+        children: [
+          const OfflineBanner(),
+          Expanded(
+            child: IndexedStack(
+              index: _currentIndex,
+              children: const [
+                _DocumentsTab(),
+                CompareScreen(),
+                ActionsScreen(),
+              ],
+            ),
+          ),
+        ],
       ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _currentIndex,

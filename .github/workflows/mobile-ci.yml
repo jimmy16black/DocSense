@@ -37,3 +37,8 @@ jobs:
         run: |
           cd mobile
           flutter analyze
+
+      - name: Run unit tests
+        run: |
+          cd mobile
+          flutter test --reporter expanded
