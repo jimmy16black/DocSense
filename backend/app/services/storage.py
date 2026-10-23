@@ -88,6 +88,12 @@ class StorageService:
             raise
 
     def delete_file(self, storage_path: str) -> None:
+        """Delete an object from R2.
+
+        ISSUE-005: previously failures were swallowed (log-only), which let
+        erasure endpoints claim "permanently deleted" while files survived.
+        Callers must handle the raised exception; local mock mode still no-ops.
+        """
         if not self.client:
             logger.info("Mock deleting storage path", storage_path=storage_path)
             return
@@ -99,6 +105,7 @@ class StorageService:
             logger.error(
                 "Failed to delete file from storage", error=str(e), storage_path=storage_path
             )
+            raise
 
 
 storage_service = StorageService()

@@ -5,10 +5,16 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
-from app.core.errors import PermissionDeniedError, ResourceNotFoundError, ValidationError
+from app.core.errors import (
+    DocSenseException,
+    ErrorClassification,
+    PermissionDeniedError,
+    ResourceNotFoundError,
+    ValidationError,
+)
 from app.core.logging import get_logger
 from app.core.security import CurrentUser, get_current_user
-from app.db.session import get_db_session
+from app.db.session import commit_now, get_db_session
 from app.models.document import (
     Citation,
     Document,
@@ -76,7 +82,10 @@ async def init_upload(
         document_type=req.document_type,
     )
     db.add(document)
-    await db.flush()
+    # Commit immediately so the document row is durable BEFORE handing the
+    # client a presigned URL (ISSUE-001). Otherwise an upload could reference
+    # a document row that never persisted.
+    await commit_now(db)
 
     return APIResponse(
         success=True,
@@ -123,75 +132,86 @@ async def process_document(
             ),
         )
 
-    # Transition to VALIDATING -> EXTRACTING
+    # Transition to VALIDATING -> EXTRACTING and persist the state change
+    # immediately (ISSUE-001: never rely on bare flush() for observable writes).
     document.status = DocumentStatus.EXTRACTING
-    await db.flush()
+    await commit_now(db)
 
-    # Simulate extraction pipeline (or invoke workers/services)
-    # 1. Provide mock page text for offline / unit tests
-    mock_pages = [
-        (
-            1,
-            f"Document: {document.title}\nPolicy Schedule\nSum Insured: Rs. 10,00,000/- for Jane Doe.",
-        ),
-        (
-            2,
-            "Terms & Conditions\nSection 4.1: Pre-existing diseases covered after 24 consecutive months.",
-        ),
-    ]
-    document.page_count = len(mock_pages)
+    try:
+        # Simulate extraction pipeline (or invoke workers/services)
+        # 1. Provide mock page text for offline / unit tests
+        mock_pages = [
+            (
+                1,
+                f"Document: {document.title}\nPolicy Schedule\nSum Insured: Rs. 10,00,000/- for Jane Doe.",
+            ),
+            (
+                2,
+                "Terms & Conditions\nSection 4.1: Pre-existing diseases covered after 24 consecutive months.",
+            ),
+        ]
+        document.page_count = len(mock_pages)
 
-    # 2. Extract structured envelope
-    envelope = await pdf_extractor_service.extract_structured_envelope(
-        pages=mock_pages,
-        document_type_hint=document.document_type or "INSURANCE_POLICY",
-    )
-
-    # 3. Save extraction
-    extraction = Extraction(
-        document_id=document.id,
-        user_id=current_user.id,
-        document_type=envelope.document_type,
-        confidence_score=envelope.confidence_score,
-        title=envelope.title,
-        summary_bullets=envelope.summary_bullets,
-        important_alerts=envelope.important_alerts,
-        suggested_questions=envelope.suggested_questions,
-        recommended_actions=envelope.recommended_actions,
-        payload=envelope.payload,
-    )
-    db.add(extraction)
-    await db.flush()
-
-    # 4. Save citations
-    for c in envelope.citations:
-        citation_entry = Citation(
-            document_id=document.id,
-            extraction_id=extraction.id,
-            user_id=current_user.id,
-            page_number=c.page_number,
-            section_heading=c.section_heading,
-            exact_quote=c.exact_quote,
-            bounding_box=c.bounding_box,
+        # 2. Extract structured envelope
+        envelope = await pdf_extractor_service.extract_structured_envelope(
+            pages=mock_pages,
+            document_type_hint=document.document_type or "INSURANCE_POLICY",
         )
-        db.add(citation_entry)
 
-    # 5. Create chunks
-    chunks_data = pdf_extractor_service.chunk_text(mock_pages)
-    for ch in chunks_data:
-        chunk_entry = DocumentChunk(
+        # 3. Save extraction
+        extraction = Extraction(
             document_id=document.id,
             user_id=current_user.id,
-            page_number=ch["page_number"],
-            chunk_index=ch["chunk_index"],
-            content=ch["content"],
+            document_type=envelope.document_type,
+            confidence_score=envelope.confidence_score,
+            title=envelope.title,
+            summary_bullets=envelope.summary_bullets,
+            important_alerts=envelope.important_alerts,
+            suggested_questions=envelope.suggested_questions,
+            recommended_actions=envelope.recommended_actions,
+            payload=envelope.payload,
         )
-        db.add(chunk_entry)
+        db.add(extraction)
+        await db.flush()  # populate extraction.id for citation FK below
 
-    document.status = DocumentStatus.COMPLETED
-    document.confidence_score = envelope.confidence_score
-    document.document_type = envelope.document_type
-    await db.flush()
+        # 4. Save citations
+        for c in envelope.citations:
+            citation_entry = Citation(
+                document_id=document.id,
+                extraction_id=extraction.id,
+                user_id=current_user.id,
+                page_number=c.page_number,
+                section_heading=c.section_heading,
+                exact_quote=c.exact_quote,
+                bounding_box=c.bounding_box,
+            )
+            db.add(citation_entry)
+
+        # 5. Create chunks
+        chunks_data = pdf_extractor_service.chunk_text(mock_pages)
+        for ch in chunks_data:
+            chunk_entry = DocumentChunk(
+                document_id=document.id,
+                user_id=current_user.id,
+                page_number=ch["page_number"],
+                chunk_index=ch["chunk_index"],
+                content=ch["content"],
+            )
+            db.add(chunk_entry)
+
+        document.status = DocumentStatus.COMPLETED
+        document.confidence_score = envelope.confidence_score
+        document.document_type = envelope.document_type
+        # Persist ALL pipeline results atomically before reporting success.
+        await commit_now(db)
+    except Exception as exc:
+        # Error-state transition per Document_8 state machine: FAILED is durable
+        # even when the rest of the transaction is rolled back.
+        document.status = DocumentStatus.FAILED
+        document.error_message = str(exc)[:2000]
+        await commit_now(db)
+        logger.error("Document processing failed", document_id=str(document_id), error=str(exc))
+        raise
 
     return APIResponse(
         success=True,
@@ -423,9 +443,26 @@ async def delete_document(
     if document.user_id != current_user.id:
         raise PermissionDeniedError("Access denied.")
 
-    storage_service.delete_file(document.storage_path)
-    await db.delete(document)
-    await db.flush()
+    # Delete storage object first; if it fails we must NOT claim full deletion.
+    # ISSUE-005 (partial): surface storage failures instead of swallowing them.
+    try:
+        storage_service.delete_file(document.storage_path)
+    except Exception as exc:
+        logger.error(
+            "Storage deletion failed during document delete",
+            document_id=str(document_id),
+            error=str(exc),
+        )
+        raise DocSenseException(
+            message="Document could not be fully deleted. Please try again.",
+            classification=ErrorClassification.RETRYABLE_FAILURE,
+            status_code=500,
+            code="STORAGE_DELETE_FAILED",
+            is_retryable=True,
+        ) from exc
+
+    await db.delete(document)  # cascades to pages/chunks/extractions/actions
+    await commit_now(db)
 
     return APIResponse(
         success=True,

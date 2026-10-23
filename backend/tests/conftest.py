@@ -1,3 +1,10 @@
+import os
+
+# ISSUE-006: the "test-token-*" auth bypass is OFF unless explicitly opted in.
+# The test suite opts in here (and only here) so CI keeps working while real
+# staging/QA deployments can never accept attacker-chosen identities.
+os.environ.setdefault("ALLOW_TEST_TOKENS", "true")
+
 from collections.abc import AsyncGenerator
 
 import pytest

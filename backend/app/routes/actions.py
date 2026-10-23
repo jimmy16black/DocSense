@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import PermissionDeniedError, ResourceNotFoundError
 from app.core.security import CurrentUser, get_current_user
-from app.db.session import get_db_session
+from app.db.session import commit_now, get_db_session
 from app.models.document import Action, Document
 from app.schemas.action import ActionResponse, ActionUpdateRequest, ReminderCreateRequest
 from app.schemas.common import APIResponse
@@ -44,7 +44,7 @@ async def create_reminder(
         payload=req.payload,
     )
     db.add(action)
-    await db.flush()
+    await commit_now(db)  # ISSUE-001: durable write before success response
 
     return APIResponse(
         success=True,
@@ -98,7 +98,7 @@ async def update_action(
     if req.notes:
         action.payload = {**action.payload, "notes": req.notes}
 
-    await db.flush()
+    await commit_now(db)  # ISSUE-001: durable write before success response
 
     return APIResponse(
         success=True,

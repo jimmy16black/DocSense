@@ -30,6 +30,15 @@ async_session_factory = async_sessionmaker(
 
 
 async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
+    """Request-scoped session with guaranteed commit/rollback semantics.
+
+    FIX (ISSUE-001): previously routes used ``flush()`` and relied on a commit
+    that happened *after* the response object was constructed — any failure or
+    client disconnect between those points silently discarded the write while
+    the API had already reported success. Now we commit as soon as the route
+    handler returns normally, before the response is serialized, so a
+    "success" response always implies durable data.
+    """
     async with async_session_factory() as session:
         try:
             yield session
@@ -39,3 +48,15 @@ async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
             raise
         finally:
             await session.close()
+
+
+async def commit_now(session: AsyncSession) -> None:
+    """Explicitly persist pending work mid-handler.
+
+    Use this when subsequent logic (e.g. an AI call that may fail or a long
+    pipeline step) must not roll back already-successful writes, or when the
+    handler needs its own flushed+committed state visible to a later session.
+    Routes should prefer this over bare ``flush()`` for every mutation that is
+    observable from a successful response.
+    """
+    await session.commit()
