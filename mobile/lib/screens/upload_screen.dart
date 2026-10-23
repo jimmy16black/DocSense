@@ -1,0 +1,208 @@
+import 'package:flutter/material.dart';
+import 'package:file_picker/file_picker.dart';
+import '../core/theme/app_theme.dart';
+import '../services/api_service.dart';
+import 'document_detail_screen.dart';
+
+class UploadScreen extends StatefulWidget {
+  const UploadScreen({super.key});
+
+  @override
+  State<UploadScreen> createState() => _UploadScreenState();
+}
+
+class _UploadScreenState extends State<UploadScreen> {
+  final ApiService _apiService = ApiService();
+
+  PlatformFile? _selectedFile;
+  String _documentType = 'INSURANCE_POLICY';
+  bool _isUploading = false;
+  String _currentStep = '';
+
+  Future<void> _pickFile() async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['pdf', 'png', 'jpg', 'jpeg'],
+    );
+
+    if (result != null && result.files.isNotEmpty) {
+      final file = result.files.first;
+
+      // Validate 25 MB max size
+      if (file.size > 25 * 1024 * 1024) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('File exceeds 25 MB limit.')),
+        );
+        return;
+      }
+
+      setState(() {
+        _selectedFile = file;
+      });
+    }
+  }
+
+  Future<void> _startUploadAndProcess() async {
+    if (_selectedFile == null) return;
+
+    setState(() {
+      _isUploading = true;
+      _currentStep = 'Initializing secure upload vault...';
+    });
+
+    try {
+      final initData = await _apiService.initUpload(
+        fileName: _selectedFile!.name,
+        fileSizeBytes: _selectedFile!.size,
+        mimeType: _selectedFile!.extension == 'pdf' ? 'application/pdf' : 'image/jpeg',
+        documentType: _documentType,
+      );
+
+      final documentId = initData['documentId'] as String;
+
+      setState(() {
+        _currentStep = 'Reading pages and validating document structure...';
+      });
+
+      await Future.delayed(const Duration(milliseconds: 600));
+
+      setState(() {
+        _currentStep = 'Extracting structured facts and verifying citations...';
+      });
+
+      final processData = await _apiService.processDocument(documentId);
+
+      if (!mounted) return;
+
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => DocumentDetailScreen(documentId: documentId),
+        ),
+      );
+    } catch (e) {
+      setState(() {
+        _isUploading = false;
+      });
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Processing failed: $e')),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Upload Document'),
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(AppSpacing.xl),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (!_isUploading) ...[
+              const Text(
+                'Select Document Type',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              DropdownButtonFormField<String>(
+                value: _documentType,
+                decoration: const InputDecoration(),
+                items: const [
+                  DropdownMenuItem(value: 'INSURANCE_POLICY', child: Text('Insurance Policy')),
+                  DropdownMenuItem(value: 'GST_INVOICE', child: Text('GST Invoice / Tax Bill')),
+                  DropdownMenuItem(value: 'BILL_RECEIPT', child: Text('Utility Bill / Receipt')),
+                  DropdownMenuItem(value: 'CONTRACT', child: Text('Rental / Service Contract')),
+                  DropdownMenuItem(value: 'OTHER', child: Text('Other Document')),
+                ],
+                onChanged: (val) {
+                  if (val != null) setState(() => _documentType = val);
+                },
+              ),
+              const SizedBox(height: AppSpacing.xl),
+              GestureDetector(
+                onTap: _pickFile,
+                child: Container(
+                  height: 180,
+                  decoration: BoxDecoration(
+                    color: AppColors.elevated,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: _selectedFile != null ? AppColors.primary : const Color(0xFFD1D5DB),
+                      width: 2,
+                    ),
+                  ),
+                  child: Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          _selectedFile != null ? Icons.check_circle : Icons.cloud_upload_outlined,
+                          size: 48,
+                          color: _selectedFile != null ? AppColors.success : AppColors.primary,
+                        ),
+                        const SizedBox(height: AppSpacing.sm),
+                        Text(
+                          _selectedFile != null ? _selectedFile!.name : 'Tap to select PDF or image',
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                            color: _selectedFile != null ? AppColors.textPrimary : AppColors.primary,
+                          ),
+                        ),
+                        if (_selectedFile != null)
+                          Text(
+                            '${(_selectedFile!.size / 1024).toStringAsFixed(1)} KB',
+                            style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              const Spacer(),
+              ElevatedButton(
+                onPressed: _selectedFile != null ? _startUploadAndProcess : null,
+                child: const Text('Process & Extract'),
+              ),
+            ] else ...[
+              const Spacer(),
+              const Center(
+                child: SizedBox(
+                  width: 56,
+                  height: 56,
+                  child: CircularProgressIndicator(strokeWidth: 3),
+                ),
+              ),
+              const SizedBox(height: AppSpacing.xl),
+              Text(
+                _currentStep,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              const Text(
+                'This document is being analyzed with grounded evidence verification.',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+              ),
+              const Spacer(),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}

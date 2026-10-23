@@ -1,0 +1,82 @@
+name: Backend CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test-and-lint:
+    name: Backend Lint, Type Check & Test
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgrespassword
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        run: |
+          cd backend
+          uv sync --all-groups
+
+      - name: Lint with ruff
+        run: |
+          cd backend
+          uv run ruff check .
+
+      - name: Check formatting with ruff
+        run: |
+          cd backend
+          uv run ruff format --check .
+
+      - name: Type check with mypy
+        run: |
+          cd backend
+          uv run mypy app
+
+      - name: Run test suite with coverage
+        env:
+          APP_ENV: testing
+          SECRET_KEY: test-secret-key-32-chars-minimum-length
+          SUPABASE_DB_URL: postgresql+asyncpg://postgres:postgrespassword@localhost:5432/postgres
+          SUPABASE_JWT_SECRET: test-jwt-secret-at-least-32-chars-long
+          UPSTASH_REDIS_URL: redis://localhost:6379
+        run: |
+          cd backend
+          uv run pytest -v --cov=app --cov-report=xml --cov-report=term

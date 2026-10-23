@@ -1,0 +1,51 @@
+# Environments and Secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.cert
+
+# Python & Virtual Environments
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+ENV/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+dist/
+build/
+*.egg-info/
+
+# Flutter / Dart
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+build/
+ios/.generated/
+android/.gradle/
+*.iml
+
+# Node / JS
+node_modules/
+npm-debug.log*
+
+# Databases & local storage
+*.sqlite3
+*.db
+local_storage/
+tmp/
+
+# OS and Editors
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo

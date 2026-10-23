@@ -1,0 +1,110 @@
+import time
+import uuid
+from contextlib import asynccontextmanager
+
+from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+
+from app.core.config import get_settings
+from app.core.errors import (
+    DocSenseException,
+    ErrorClassification,
+    docsense_exception_handler,
+    unhandled_exception_handler,
+)
+from app.core.logging import (
+    correlation_id_ctx,
+    get_logger,
+    setup_logging,
+)
+from app.routes import actions_router, documents_router, health_router, users_router
+
+settings = get_settings()
+setup_logging(debug=settings.DEBUG)
+logger = get_logger("main")
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    logger.info(
+        "DocSense Backend starting up",
+        environment=settings.APP_ENV,
+        version="0.1.0",
+    )
+    yield
+    logger.info("DocSense Backend shutting down")
+
+
+app = FastAPI(
+    title="DocSense API",
+    description="DocSense — AI Document → Action API",
+    version="0.1.0",
+    docs_url="/docs" if not settings.is_production else None,
+    redoc_url="/redoc" if not settings.is_production else None,
+    lifespan=lifespan,
+)
+
+# CORS Middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.ALLOWED_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+# Correlation ID and Request Timing Middleware
+@app.middleware("http")
+async def correlation_id_middleware(request: Request, call_next):
+    corr_id = request.headers.get("X-Correlation-ID") or str(uuid.uuid4())
+    correlation_id_ctx.set(corr_id)
+
+    start_time = time.perf_counter()
+    response = await call_next(request)
+    duration_ms = (time.perf_counter() - start_time) * 1000
+
+    response.headers["X-Correlation-ID"] = corr_id
+    response.headers["X-Response-Time-Ms"] = f"{duration_ms:.2f}"
+
+    logger.info(
+        "HTTP request processed",
+        method=request.method,
+        path=request.url.path,
+        status_code=response.status_code,
+        duration_ms=round(duration_ms, 2),
+    )
+    return response
+
+
+# Exception Handlers
+app.add_exception_handler(DocSenseException, docsense_exception_handler)  # type: ignore[arg-type]
+app.add_exception_handler(Exception, unhandled_exception_handler)
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    cid = correlation_id_ctx.get()
+    return JSONResponse(
+        status_code=422,
+        content={
+            "success": False,
+            "error": {
+                "code": "VALIDATION_ERROR",
+                "message": "Input validation failed. Please check your request parameters.",
+                "classification": ErrorClassification.USER_ACTION_REQUIRED.value,
+                "isRetryable": False,
+                "correlationId": cid,
+                "details": {"errors": exc.errors()},
+            },
+        },
+    )
+
+
+# Routers
+app.include_router(health_router)
+app.include_router(documents_router, prefix=settings.API_V1_PREFIX)
+app.include_router(actions_router, prefix=settings.API_V1_PREFIX)
+app.include_router(users_router, prefix=settings.API_V1_PREFIX)
