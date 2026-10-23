@@ -75,10 +75,28 @@ class ApiService {
     return DocumentModel.fromJson(response.data['data']);
   }
 
-  Future<List<DocumentModel>> listDocuments() async {
-    final response = await client.dio.get('/api/v1/documents');
-    final list = response.data['data'] as List<dynamic>;
-    return list.map((e) => DocumentModel.fromJson(e as Map<String, dynamic>)).toList();
+  Future<DocumentListResult> listDocuments({
+    int page = 1,
+    int pageSize = 20,
+    String? status,
+    String? documentType,
+    String? search,
+    String sort = '-created_at',
+  }) async {
+    // ISSUE-013: backend now returns a paginated envelope
+    // { items, pagination } instead of a bare array.
+    final response = await client.dio.get(
+      '/api/v1/documents',
+      queryParameters: {
+        'page': page,
+        'pageSize': pageSize,
+        'sort': sort,
+        if (status != null) 'status': status,
+        if (documentType != null) 'documentType': documentType,
+        if (search != null && search.trim().isNotEmpty) 'search': search.trim(),
+      },
+    );
+    return DocumentListResult.fromJson(response.data['data'] as Map<String, dynamic>);
   }
 
   Future<AskResponse> askQuestion(String documentId, String question) async {

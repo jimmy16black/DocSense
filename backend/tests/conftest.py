@@ -95,3 +95,35 @@ async def client(
     except TimeoutError:
         pass  # surfaced through assertions instead of hanging CI
     app.dependency_overrides.clear()
+
+
+@pytest.fixture
+async def client_no_user_override(
+    db_session: AsyncSession,
+) -> AsyncGenerator[AsyncClient, None]:
+    """Client that exercises the REAL get_current_user dependency.
+
+    With ALLOW_TEST_TOKENS=true (set in this conftest), requests may present
+    ``Authorization: Bearer test-token-<user-id>`` to act as arbitrary test
+    identities — required for cross-tenant isolation tests (ISSUE-016).
+    """
+    async def override_get_db():
+        yield db_session
+
+    from app.services.pipeline import pipeline_worker
+
+    pipeline_worker.session_factory = TestSessionLocal
+    pipeline_worker._queue = asyncio.Queue()
+    pipeline_worker._tasks = set()
+
+    app.dependency_overrides[get_db_session] = override_get_db
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        yield ac
+
+    try:
+        await pipeline_worker.drain(timeout=15.0)
+    except TimeoutError:
+        pass
+    app.dependency_overrides.clear()

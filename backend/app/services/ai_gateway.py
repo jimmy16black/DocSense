@@ -143,9 +143,58 @@ class AIGatewayService:
             }
         )
 
+    async def _embed_via_api(self, texts: list[str]) -> list[list[float]]:
+        """Call a real embeddings endpoint (OpenAI-compatible).
+
+        Prefers Portkey (unified gateway w/ fallbacks); falls back to direct
+        OpenAI when only OPENAI_API_KEY is configured. Raises on failure so
+        callers can decide whether embedding is optional or required.
+        """
+        api_key = None
+        base_url = None
+        client_kwargs = {}
+
+        if self.portkey_client is not None:
+            api_key = self.portkey_api_key
+            base_url = "https://api.portkey.ai/v1"
+        elif self.openai_api_key:
+            api_key = self.openai_api_key
+            base_url = settings.OPENAI_BASE_URL or "https://api.openai.com/v1"
+
+        if not api_key:
+            raise RuntimeError("No embeddings provider configured")
+
+        from openai import AsyncOpenAI
+
+        client = AsyncOpenAI(api_key=api_key, base_url=base_url, **client_kwargs)
+        response = await client.embeddings.create(
+            model=settings.DEFAULT_EMBEDDING_MODEL,
+            input=texts,
+        )
+        # Preserve request order defensively
+        ordered = sorted(response.data, key=lambda d: d.index)
+        vectors = [item.embedding for item in ordered]
+        if len(vectors) != len(texts):
+            raise RuntimeError(
+                f"Embeddings count mismatch: got {len(vectors)} for {len(texts)} inputs"
+            )
+        return vectors
+
     async def generate_embeddings(self, texts: list[str]) -> list[list[float]]:
-        # In a real environment with Portkey / OpenAI, calls embeddings API
-        # For offline / dev mode, generate a normalized 1536-dim vector deterministically
+        # FIX (ISSUE-004): use a real embeddings API when credentials exist so
+        # semantic retrieval actually ranks by meaning. Offline/dev mode keeps
+        # a deterministic pseudo-vector fallback so CI needs no secrets — but
+        # note those vectors carry NO semantic signal; hybrid search therefore
+        # also runs a lexical leg which works in every environment.
+        if self.portkey_api_key or self.openai_api_key:
+            try:
+                return await self._embed_via_api(texts)
+            except Exception as e:
+                logger.error(
+                    "Real embeddings call failed; falling back to offline vectors",
+                    error=str(e),
+                )
+
         embeddings = []
         for text in texts:
             import hashlib

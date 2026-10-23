@@ -112,7 +112,9 @@ class _DocumentsTab extends ConsumerWidget {
           ),
         ),
       ),
-      data: (docs) {
+      data: (result) {
+        final docs = result.items;
+        final pagination = result.pagination;
         if (docs.isEmpty) {
           return Center(
             child: Padding(
@@ -122,19 +124,23 @@ class _DocumentsTab extends ConsumerWidget {
                 children: [
                   const Icon(Icons.folder_open, size: 64, color: AppColors.textTertiary),
                   const SizedBox(height: AppSpacing.md),
-                  const Text(
-                    'No documents yet',
-                    style: TextStyle(
+                  Text(
+                    ref.watch(documentListFilterProvider).search.isNotEmpty
+                        ? 'No matches found'
+                        : 'No documents yet',
+                    style: const TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
                       color: AppColors.textPrimary,
                     ),
                   ),
                   const SizedBox(height: AppSpacing.xs),
-                  const Text(
-                    'Upload an insurance policy, GST invoice, or contract to get grounded answers and actions.',
+                  Text(
+                    ref.watch(documentListFilterProvider).search.isNotEmpty
+                        ? 'Try a different search term, e.g. "policy" or "GST".'
+                        : 'Upload an insurance policy, GST invoice, or contract to get grounded answers and actions.',
                     textAlign: TextAlign.center,
-                    style: TextStyle(color: AppColors.textSecondary),
+                    style: const TextStyle(color: AppColors.textSecondary),
                   ),
                 ],
               ),
@@ -144,13 +150,36 @@ class _DocumentsTab extends ConsumerWidget {
 
         return RefreshIndicator(
           onRefresh: () async => ref.refresh(documentListProvider),
-          child: ListView.builder(
-            padding: const EdgeInsets.all(AppSpacing.lg),
-            itemCount: docs.length,
-            itemBuilder: (context, index) {
-              final doc = docs[index];
-              return _DocumentCard(document: doc);
-            },
+          child: Column(
+            children: [
+              const _LibrarySearchBar(),
+              Expanded(
+                child: ListView.builder(
+                  padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.sm, AppSpacing.lg, AppSpacing.lg),
+                  // +1 trailing slot for the pagination footer when more pages exist.
+                  itemCount: docs.length + (pagination.hasNext ? 1 : 0),
+                  itemBuilder: (context, index) {
+                    if (index >= docs.length) {
+                      return Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(AppSpacing.md),
+                          child: TextButton(
+                            onPressed: () {
+                              // Grow the fetched window by one page (bounded,
+                              // dependency-free infinite list).
+                              ref.read(documentPageSizeProvider.notifier).state += 20;
+                            },
+                            child: const Text('Load more…'),
+                          ),
+                        ),
+                      );
+                    }
+                    final doc = docs[index];
+                    return _DocumentCard(document: doc);
+                  },
+                ),
+              ),
+            ],
           ),
         );
       },
@@ -298,6 +327,70 @@ class _StatusBadge extends StatelessWidget {
           color: fg,
           fontSize: 11,
           fontWeight: FontWeight.bold,
+        ),
+      ),
+    );
+  }
+}
+
+/// Debounced, server-side search field shown above the library list
+/// (ISSUE-013 + ISSUE-014 "search-first home").
+class _LibrarySearchBar extends ConsumerStatefulWidget {
+  const _LibrarySearchBar();
+
+  @override
+  ConsumerState<_LibrarySearchBar> createState() => _LibrarySearchBarState();
+}
+
+class _LibrarySearchBarState extends ConsumerState<_LibrarySearchBar> {
+  final TextEditingController _controller = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _controller.text = ref.read(documentListFilterProvider).search;
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _onChanged(String value) {
+    // Riverpod re-fetches automatically when the filter state changes.
+    ref.read(documentPageSizeProvider.notifier).state = 20; // reset paging on new query
+    ref.read(documentListFilterProvider.notifier).state =
+        ref.read(documentListFilterProvider).copyWith(search: value.trim());
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.lg, AppSpacing.lg, 0),
+      child: TextField(
+        controller: _controller,
+        textInputAction: TextInputAction.search,
+        onChanged: _onChanged,
+        decoration: InputDecoration(
+          hintText: 'Search policies, invoices, contracts…',
+          prefixIcon: const Icon(Icons.search),
+          suffixIcon: _controller.text.isNotEmpty
+              ? IconButton(
+                  icon: const Icon(Icons.close),
+                  onPressed: () {
+                    _controller.clear();
+                    _onChanged('');
+                  },
+                )
+              : null,
+          filled: true,
+          fillColor: const Color(0xFFF9FAFB),
+          contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: AppSpacing.md),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide.none,
+          ),
         ),
       ),
     );

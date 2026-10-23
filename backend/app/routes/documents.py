@@ -2,8 +2,8 @@ import hashlib
 import re
 import uuid
 
-from fastapi import APIRouter, Depends
-from sqlalchemy import select
+from fastapi import APIRouter, Depends, Query
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
@@ -19,7 +19,7 @@ from app.core.security import CurrentUser, get_current_user
 from app.db.session import commit_now, get_db_session
 from app.models.document import Citation, Document, DocumentStatus, Extraction
 from app.schemas.citation import CitationSchema
-from app.schemas.common import APIResponse
+from app.schemas.common import APIResponse, PageMeta, PagedData
 from app.schemas.document import (
     DocumentEvent,
     DocumentProcessRequest,
@@ -482,22 +482,65 @@ async def get_document(
     return APIResponse(success=True, data=doc_resp)
 
 
-@router.get("", response_model=APIResponse[list[DocumentResponse]])
+@router.get("", response_model=APIResponse[PagedData[DocumentResponse]])
 async def list_documents(
+    page: int = Query(1, ge=1, description="1-based page number"),
+    page_size: int = Query(20, ge=1, le=100, alias="pageSize", description="Items per page (max 100)"),
+    status: str | None = Query(None, description="Filter by lifecycle status (e.g. COMPLETED)"),
+    document_type: str | None = Query(None, alias="documentType", description="Filter by extracted document type"),
+    search: str | None = Query(None, max_length=200, description="Case-insensitive title/file-name search"),
+    sort: str = Query("-created_at", description="Sort key: created_at | -created_at | title | -title | confidence_score | -confidence_score"),
     current_user: CurrentUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ):
+    """List documents with pagination, filtering, search and sorting (ISSUE-013).
+
+    Previously returned the user's ENTIRE library unpaginated — O(n) payload
+    growth that breaks mobile performance as vaults scale. Now bounded to
+    ``page_size`` items plus a pagination envelope so the client can render
+    infinite scroll / paged lists correctly.
     """
-    List all documents owned by current authenticated user.
-    """
-    query = (
-        select(Document)
-        .where(Document.user_id == current_user.id)
-        .order_by(Document.created_at.desc())
+    conds = [Document.user_id == current_user.id]
+    if status:
+        conds.append(Document.status == status.upper())
+    if document_type:
+        conds.append(Document.document_type == document_type.lower())
+    if search:
+        # Substring match with LIKE wildcards escaped (LIKE-injection safe) and
+        # an explicit ESCAPE clause so the pattern works identically on
+        # Postgres and SQLite. Lower-cased for portability (Postgres ILIKE ->
+        # we normalize both sides instead).
+        term = search.strip().lower()
+        if term:
+            escaped = term.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+            pattern = f"%{escaped}%"
+            conds.append(
+                or_(
+                    func.lower(Document.title).like(pattern, escape="\\"),
+                    func.lower(Document.file_name).like(pattern, escape="\\"),
+                )
+            )
+
+    sort_map = {
+        "created_at": Document.created_at.asc(),
+        "-created_at": Document.created_at.desc(),
+        "title": Document.title.asc(),
+        "-title": Document.title.desc(),
+        "confidence_score": Document.confidence_score.asc(),
+        "-confidence_score": Document.confidence_score.desc(),
+    }
+    order = sort_map.get(sort, Document.created_at.desc())
+
+    total = (
+        await db.execute(select(func.count()).select_from(Document).where(*conds))
+    ).scalar_one()
+
+    result = await db.execute(
+        select(Document).where(*conds).order_by(order).offset((page - 1) * page_size).limit(page_size)
     )
-    result = await db.execute(query)
     docs = list(result.scalars().all())
 
+    total_pages = (total + page_size - 1) // page_size
     items = [
         DocumentResponse(
             id=d.id,
@@ -519,7 +562,19 @@ async def list_documents(
         for d in docs
     ]
 
-    return APIResponse(success=True, data=items)
+    return APIResponse(
+        success=True,
+        data=PagedData(
+            items=items,
+            pagination=PageMeta(
+                page=page,
+                page_size=page_size,
+                total=total,
+                total_pages=total_pages,
+                has_next=page < total_pages,
+            ),
+        ),
+    )
 
 
 @router.post("/{document_id}/ask", response_model=APIResponse[AskResponse])

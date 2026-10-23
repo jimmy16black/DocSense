@@ -40,6 +40,7 @@ class Settings(BaseSettings):
     PORTKEY_VIRTUAL_KEY: str = ""
     GEMINI_API_KEY: str = ""
     OPENAI_API_KEY: str = ""
+    OPENAI_BASE_URL: str = ""  # optional override (Azure/proxy/self-hosted gateways)
     DEFAULT_PRIMARY_MODEL: str = "gemini-1.5-pro"
     DEFAULT_FALLBACK_MODEL: str = "gpt-4o"
     DEFAULT_EMBEDDING_MODEL: str = "text-embedding-3-small"

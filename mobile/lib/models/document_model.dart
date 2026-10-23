@@ -64,3 +64,46 @@ class DocumentModel {
     );
   }
 }
+
+/// Paginated document list payload (ISSUE-013).
+class PaginationMeta {
+  final int page;
+  final int pageSize;
+  final int total;
+  final int totalPages;
+  final bool hasNext;
+
+  const PaginationMeta({
+    required this.page,
+    required this.pageSize,
+    required this.total,
+    required this.totalPages,
+    required this.hasNext,
+  });
+
+  factory PaginationMeta.fromJson(Map<String, dynamic> json) => PaginationMeta(
+        page: (json['page'] as num?)?.toInt() ?? 1,
+        pageSize: (json['pageSize'] ?? json['page_size'] as num?)?.toInt() ?? 20,
+        total: (json['total'] as num?)?.toInt() ?? 0,
+        totalPages: (json['totalPages'] ?? json['total_pages'] as num?)?.toInt() ?? 0,
+        hasNext: (json['hasNext'] ?? json['has_next']) == true,
+      );
+}
+
+class DocumentListResult {
+  final List<DocumentModel> items;
+  final PaginationMeta pagination;
+
+  const DocumentListResult({required this.items, required this.pagination});
+
+  factory DocumentListResult.fromJson(Map<String, dynamic> json) {
+    final rawItems = (json['items'] as List<dynamic>?) ?? const [];
+    final pg = json['pagination'];
+    return DocumentListResult(
+      items: rawItems.map((e) => DocumentModel.fromJson(e as Map<String, dynamic>)).toList(),
+      pagination: pg is Map<String, dynamic>
+          ? PaginationMeta.fromJson(pg)
+          : PaginationMeta(page: 1, pageSize: rawItems.length, total: rawItems.length, totalPages: 1, hasNext: false),
+    );
+  }
+}

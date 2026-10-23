@@ -45,7 +45,8 @@ class _CompareScreenState extends ConsumerState<CompareScreen> {
       body: docsAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (err, _) => Center(child: Text('Error loading documents: $err')),
-        data: (docs) {
+        data: (result) {
+          final docs = result.items;
           if (docs.length < 2) {
             return Center(
               child: Padding(

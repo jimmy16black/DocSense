@@ -1,9 +1,11 @@
+import pytest
+
 from app.models.document import DocumentChunk
 from app.schemas.citation import CitationSchema
 from app.schemas.extraction import ExtractionEnvelope
 from app.services.ai_gateway import redact_pii
 from app.services.extractor import pdf_extractor_service
-from app.services.rag import rag_service
+from app.services.rag import RAGService, rag_service
 from app.services.storage import storage_service
 
 
@@ -91,3 +93,106 @@ def test_storage_service_urls():
 
     download_url = storage_service.generate_download_url("users/u1/doc.pdf")
     assert download_url != ""
+
+
+# ---------- ISSUE-004: hybrid RAG regression tests ----------
+
+
+def test_extract_keywords_stops_short_words_and_stopwords():
+    from app.services.rag import extract_keywords
+
+    kws = extract_keywords("what is the waiting period for pre-existing diseases?")
+    assert "waiting" in kws
+    assert "period" in kws
+    assert "pre-existing" not in kws  # punctuation splits token; "existing" kept
+    assert "existing" in kws
+    assert "the" not in kws and "is" not in kws and "for" not in kws
+
+
+def test_rrf_favors_consensus_across_legs():
+    class FakeChunk:
+        def __init__(self, i):
+            self.id = f"cid-{i}"
+
+    v = [FakeChunk(1), FakeChunk(2), FakeChunk(3)]
+    k = [FakeChunk(2), FakeChunk(1), FakeChunk(4)]
+    fused = RAGService.reciprocal_rank_fusion(v, k)
+    # chunk appearing top-2 in BOTH legs must outrank one that tops only one leg
+    assert str(fused[0].id) in ("cid-1", "cid-2")
+    ids = [str(c.id) for c in fused]
+    assert set(ids) == {"cid-1", "cid-2", "cid-3", "cid-4"}
+    # cid-4 (only in keyword leg, rank 3) should be last
+    assert ids[-1] == "cid-4"
+
+
+def test_cosine_similarity_math():
+    from app.services.rag import _cosine_similarity
+
+    assert _cosine_similarity([1, 0], [1, 0]) == 1.0
+    assert abs(_cosine_similarity([1, 0], [0, 1])) < 1e-9
+    assert _cosine_similarity([], [1]) == 0.0
+    assert _cosine_similarity([0, 0], [1, 1]) == 0.0
+
+
+@pytest.mark.asyncio
+async def test_keyword_search_ranks_by_term_coverage(db_session, mock_current_user):
+    """Lexical leg must recall exact terms regardless of embeddings."""
+    import uuid as uuid_mod
+
+    from app.models.document import DocumentChunk
+
+    doc_id = uuid_mod.uuid4()
+    uid = mock_current_user.id
+    rows = [
+        DocumentChunk(
+            id=uuid_mod.uuid4(), document_id=doc_id, user_id=uid,
+            page_number=1, chunk_index=0,
+            content="The premium renewal date is 15 April each policy year.",
+        ),
+        DocumentChunk(
+            id=uuid_mod.uuid4(), document_id=doc_id, user_id=uid,
+            page_number=2, chunk_index=1,
+            content="Claim settlement requires original hospital discharge summaries.",
+        ),
+        DocumentChunk(
+            id=uuid_mod.uuid4(), document_id=doc_id, user_id=uid,
+            page_number=3, chunk_index=2,
+            content="Premium payment can be made via UPI, card or auto-debit mandate.",
+        ),
+    ]
+    db_session.add_all(rows)
+    await db_session.commit()
+
+    hits = await rag_service.keyword_search(
+        db_session, doc_id, uid, "when is the premium renewal date due?", limit=3
+    )
+    assert hits, "lexical leg found nothing"
+    assert "renewal date" in hits[0].content.lower()
+
+
+@pytest.mark.asyncio
+async def test_retrieve_hybrid_returns_relevant_topk(db_session, mock_current_user):
+    import uuid as uuid_mod
+
+    from app.models.document import DocumentChunk
+
+    doc_id = uuid_mod.uuid4()
+    uid = mock_current_user.id
+    rows = []
+    for i in range(20):
+        topic = "deductible" if i % 5 == 0 else "boilerplate lorem text about general matters"
+        rows.append(
+            DocumentChunk(
+                id=uuid_mod.uuid4(), document_id=doc_id, user_id=uid,
+                page_number=i + 1, chunk_index=i,
+                content=f"The {topic} clause number {i} applies here.",
+            )
+        )
+    db_session.add_all(rows)
+    await db_session.commit()
+
+    results = await rag_service.retrieve(db_session, doc_id, uid, "what is the deductible amount?")
+    assert 0 < len(results) <= 6
+    # Retrieved context must contain the term-bearing chunks (not just first-N)
+    joined = " ".join(c.content for c in results).lower()
+    assert "deductible" in joined
