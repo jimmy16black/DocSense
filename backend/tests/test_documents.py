@@ -265,3 +265,118 @@ async def test_upload_init_sanitizes_path_traversal(client: AsyncClient):
     assert ".." not in path
     assert path.startswith("users/user-test-1234/documents/")
     assert path.endswith("_etc_passwd.pdf") or path.endswith("passwd.pdf")
+
+
+@pytest.mark.asyncio
+async def test_compare_documents_requires_completed_status(client: AsyncClient):
+    """ISSUE-012: Reject comparison if any document is not yet COMPLETED."""
+    # Create two documents in PENDING_UPLOAD state
+    d1 = await client.post(
+        "/api/v1/documents/upload-init",
+        json={"fileName": "doc1.pdf", "fileSizeBytes": 100, "mimeType": "application/pdf"},
+    )
+    d2 = await client.post(
+        "/api/v1/documents/upload-init",
+        json={"fileName": "doc2.pdf", "fileSizeBytes": 100, "mimeType": "application/pdf"},
+    )
+    id1 = d1.json()["data"]["documentId"]
+    id2 = d2.json()["data"]["documentId"]
+
+    res = await client.post(
+        "/api/v1/documents/compare",
+        json={"documentIds": [id1, id2]},
+    )
+    assert res.status_code == 422
+    assert "Cannot compare documents that are not fully processed" in res.json()["error"]["message"]
+
+
+@pytest.mark.asyncio
+async def test_compare_documents_success_with_matrix_and_winner(client: AsyncClient, db_session):
+    """ISSUE-012: Successfully compare completed documents with matrix and rule-based winners."""
+    import uuid
+
+    from app.models.document import Document, DocumentStatus, Extraction
+
+    # Seed 2 completed documents directly into test DB
+    doc_id1 = uuid.uuid4()
+    doc_id2 = uuid.uuid4()
+    user_id = "user-test-1234"
+
+    d1 = Document(
+        id=doc_id1,
+        user_id=user_id,
+        title="HDFC Ergo Silver Health Plan",
+        file_name="hdfc.pdf",
+        file_size_bytes=1000,
+        mime_type="application/pdf",
+        storage_path="path1",
+        status=DocumentStatus.COMPLETED,
+        document_type="INSURANCE_POLICY",
+    )
+    d2 = Document(
+        id=doc_id2,
+        user_id=user_id,
+        title="Star Health Gold Plan",
+        file_name="star.pdf",
+        file_size_bytes=1000,
+        mime_type="application/pdf",
+        storage_path="path2",
+        status=DocumentStatus.COMPLETED,
+        document_type="INSURANCE_POLICY",
+    )
+    e1 = Extraction(
+        id=uuid.uuid4(),
+        document_id=doc_id1,
+        user_id=user_id,
+        document_type="INSURANCE_POLICY",
+        confidence_score=0.95,
+        title="HDFC Silver",
+        payload={
+            "sum_insured": "Rs. 5,00,000",
+            "premium": "Rs. 12,000",
+            "deductible": "Rs. 10,000",
+            "policy_term": "1 Year",
+            "waiting_period": "36 months",
+            "exclusions": ["Cosmetic surgery", "War hazards"],
+        },
+    )
+    e2 = Extraction(
+        id=uuid.uuid4(),
+        document_id=doc_id2,
+        user_id=user_id,
+        document_type="INSURANCE_POLICY",
+        confidence_score=0.98,
+        title="Star Gold",
+        payload={
+            "sum_insured": "Rs. 10,00,000",
+            "premium": "Rs. 18,000",
+            "deductible": "Rs. 5,000",
+            "policy_term": "1 Year",
+            "waiting_period": "24 months",
+            "exclusions": ["Cosmetic surgery"],
+        },
+    )
+    db_session.add_all([d1, d2, e1, e2])
+    await db_session.commit()
+
+    res = await client.post(
+        "/api/v1/documents/compare",
+        json={"documentIds": [str(doc_id1), str(doc_id2)]},
+    )
+    assert res.status_code == 200
+    data = res.json()["data"]
+    assert "comparisonMatrix" in data
+    matrix = {item["attribute"]: item for item in data["comparisonMatrix"]}
+
+    # Check coverage row winner (Star Gold with 10,00,000 > 5,00,000)
+    assert "Coverage / Sum Insured" in matrix
+    assert matrix["Coverage / Sum Insured"]["winnerDocumentId"] == str(doc_id2)
+
+    # Check deductible row winner (Star Gold with 5,000 < 10,000)
+    assert "Deductible / Co-pay" in matrix
+    assert matrix["Deductible / Co-pay"]["winnerDocumentId"] == str(doc_id2)
+
+    # Check key exclusions row
+    assert "Key Exclusions" in matrix
+    assert "2 exclusions noted" in matrix["Key Exclusions"]["values"][str(doc_id1)]
+    assert "1 exclusions noted" in matrix["Key Exclusions"]["values"][str(doc_id2)]

@@ -679,7 +679,7 @@ async def compare_documents(
     db: AsyncSession = Depends(get_db_session),
 ):
     """
-    Compares 2-5 documents side-by-side on critical terms/clauses.
+    Compares 2-5 documents side-by-side on critical terms/clauses (ISSUE-012).
     """
     query = select(Document).where(
         Document.id.in_(req.document_ids),
@@ -691,28 +691,130 @@ async def compare_documents(
     if len(documents) != len(req.document_ids):
         raise ValidationError("One or more documents could not be found or do not belong to you.")
 
-    # Compare key attributes
-    matrix = [
-        ComparisonItem(
-            attribute="Document Type",
-            values={str(d.id): d.document_type or "Unknown" for d in documents},
-            winnerDocumentId=None,
-            notes="Extracted document classification",
+    # 1. State machine validation: documents must be COMPLETED
+    incomplete = [d.title for d in documents if d.status != DocumentStatus.COMPLETED]
+    if incomplete:
+        raise ValidationError(
+            f"Cannot compare documents that are not fully processed. Pending: {', '.join(incomplete)}"
+        )
+
+    # 2. Category compatibility check
+    doc_types = {d.document_type for d in documents if d.document_type}
+    if len(doc_types) > 1:
+        raise ValidationError(
+            f"Invalid comparison: cannot compare different document types ({', '.join(doc_types)}). "
+            "Please select documents of the same category."
+        )
+
+    # 3. Fetch latest extractions for term-level alignment
+    ext_query = (
+        select(Extraction)
+        .where(Extraction.document_id.in_(req.document_ids))
+        .order_by(Extraction.created_at.desc())
+    )
+    ext_res = await db.execute(ext_query)
+    extractions_map: dict[uuid.UUID, Extraction] = {}
+    for ext in ext_res.scalars().all():
+        if ext.document_id not in extractions_map:
+            extractions_map[ext.document_id] = ext
+
+    # 4. Construct term comparison matrix
+    def get_term_val(doc: Document, keys: list[str]) -> Any:
+        ext = extractions_map.get(doc.id)
+        if not ext or not ext.payload:
+            return "[Not specified in document]"
+        for k in keys:
+            val = ext.payload.get(k)
+            if val is not None and str(val).strip():
+                return val
+        return "[Not specified in document]"
+
+    term_specs = [
+        ("Document Classification", ["document_type"], "Extracted document category"),
+        (
+            "Coverage / Sum Insured",
+            ["sum_insured", "coverage_amount", "limit"],
+            "Maximum coverage liability",
         ),
-        ComparisonItem(
-            attribute="Coverage / Title",
-            values={str(d.id): d.title for d in documents},
-            winnerDocumentId=None,
-            notes="Document name",
+        ("Premium / Cost", ["premium", "annual_premium", "total_premium"], "Cost to policyholder"),
+        ("Deductible / Co-pay", ["deductible", "copay", "co_pay"], "Out-of-pocket obligation"),
+        (
+            "Policy Term / Validity",
+            ["policy_term", "validity_period", "expiry_date"],
+            "Effective duration",
         ),
+        (
+            "Waiting Period",
+            ["waiting_period", "pre_existing_waiting"],
+            "Duration before pre-existing coverage",
+        ),
+        ("Key Exclusions", ["exclusions", "exclusion_count"], "Non-covered events or treatments"),
+    ]
+
+    matrix: list[ComparisonItem] = []
+    for attr, keys, notes in term_specs:
+        values: dict[str, Any] = {}
+        for d in documents:
+            if attr == "Document Classification":
+                values[str(d.id)] = d.document_type or "Unknown"
+            elif attr == "Key Exclusions":
+                doc_ext = extractions_map.get(d.id)
+                ex_val = doc_ext.payload.get("exclusions") if doc_ext and doc_ext.payload else None
+                if isinstance(ex_val, list) and ex_val:
+                    values[str(d.id)] = f"{len(ex_val)} exclusions noted"
+                else:
+                    values[str(d.id)] = "[Not specified in document]"
+            else:
+                values[str(d.id)] = get_term_val(d, keys)
+
+        # Rule-based winner detection
+        winner_id: str | None = None
+        if attr == "Coverage / Sum Insured":
+            best_val = -1.0
+            for d in documents:
+                raw_str = str(values.get(str(d.id), ""))
+                nums = re.findall(r"\d[\d,]*", raw_str)
+                if nums:
+                    val_clean = float(nums[0].replace(",", ""))
+                    if val_clean > best_val:
+                        best_val = val_clean
+                        winner_id = str(d.id)
+        elif attr == "Deductible / Co-pay":
+            lowest_val = float("inf")
+            for d in documents:
+                raw_str = str(values.get(str(d.id), ""))
+                nums = re.findall(r"\d[\d,]*", raw_str)
+                if nums:
+                    val_clean = float(nums[0].replace(",", ""))
+                    if val_clean < lowest_val:
+                        lowest_val = val_clean
+                        winner_id = str(d.id)
+
+        matrix.append(
+            ComparisonItem(
+                attribute=attr,
+                values=values,
+                winnerDocumentId=winner_id,
+                notes=notes,
+            )
+        )
+
+    category_name = next(iter(doc_types), "document")
+    summary = (
+        f"Compared {len(documents)} {category_name}s across canonical terms including coverage, "
+        "costs, waiting periods, and exclusions. Term deltas and null values are explicitly preserved."
+    )
+    recs = [
+        "Review terms and conditions for specific clause differences before renewal.",
+        "Check hospital/garage network lists for each policy provider.",
     ]
 
     resp: APIResponse[CompareResponse] = APIResponse(
         success=True,
         data=CompareResponse(
-            summary=f"Compared {len(documents)} documents successfully.",
+            summary=summary,
             comparisonMatrix=matrix,
-            recommendations=["Review terms and conditions for deductible differences."],
+            recommendations=recs,
         ),
     )
     await save_idempotent_response(db, request, current_user.id, resp)
