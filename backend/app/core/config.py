@@ -61,6 +61,21 @@ class Settings(BaseSettings):
         "image/webp",
     ]
 
+    # Test-only auth bypass ("test-token-*"). MUST remain False outside CI.
+    # See ISSUE-006: gated behind explicit opt-in, never implied by APP_ENV.
+    ALLOW_TEST_TOKENS: bool = False
+
+    @field_validator("ALLOW_TEST_TOKENS")
+    @classmethod
+    def forbid_test_tokens_in_production(cls, v: bool) -> bool:
+        # Defense in depth: even a misconfigured prod env cannot enable it.
+        if v:
+            import os
+
+            if os.getenv("APP_ENV", "").lower() == "production":
+                raise ValueError("ALLOW_TEST_TOKENS must never be enabled in production")
+        return v
+
     @field_validator("ALLOWED_ORIGINS", mode="before")
     @classmethod
     def assemble_cors_origins(cls, v: str | list[str]) -> list[str]:

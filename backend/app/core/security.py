@@ -31,8 +31,12 @@ async def get_current_user(
 
     token = parts[1]
 
-    # In non-production environments, allow a test mock token for automated testing
-    if not settings.is_production and token.startswith("test-token-"):
+    # Test mock token (ISSUE-006): previously enabled in *every* non-production
+    # environment, so any deployed staging/QA instance accepted attacker-chosen
+    # identities like "test-token-<victim-uuid>". Now it requires an explicit
+    # opt-in (ALLOW_TEST_TOKENS=true), which stays false on real deployments
+    # and is only set true by the automated test suite.
+    if settings.ALLOW_TEST_TOKENS and token.startswith("test-token-"):
         mock_user_id = token.replace("test-token-", "")
         user = CurrentUser(id=mock_user_id, email=f"{mock_user_id}@example.com")
         user_id_ctx.set(user.id)
