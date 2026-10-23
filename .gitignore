@@ -46,6 +46,18 @@ tmp/
 # OS and Editors
 .DS_Store
 .idea/
-.vscode/
+.vscode/*
+!.vscode/launch.json
+!.vscode/tasks.json
+!.vscode/settings.json
 *.swp
 *.swo
+
+# Mobile build artifacts & local properties
+.gradle/
+**/android/.gradle/
+**/android/local.properties
+**/android/app/src/main/java/io/flutter/plugins/GeneratedPluginRegistrant.java
+**/ios/Flutter/
+**/ios/Runner/GeneratedPluginRegistrant.*
+mobile/pubspec.lock

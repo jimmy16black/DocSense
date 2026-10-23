@@ -1,0 +1,111 @@
+{
+  "version": "0.2.0",
+  "compounds": [
+    {
+      "name": "Full Stack: Backend + Mobile",
+      "configurations": [
+        "FastAPI: Backend Server",
+        "Flutter: Mobile (Default)"
+      ],
+      "stopAll": true
+    }
+  ],
+  "configurations": [
+    {
+      "name": "FastAPI: Backend Server",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "uvicorn",
+      "args": [
+        "app.main:app",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "8001",
+        "--reload"
+      ],
+      "cwd": "${workspaceFolder}/backend",
+      "envFile": "${workspaceFolder}/backend/.env",
+      "python": "${workspaceFolder}/backend/.venv/bin/python",
+      "jinja": true,
+      "justMyCode": true,
+      "console": "integratedTerminal"
+    },
+    {
+      "name": "FastAPI: Run E2E Smoke Test",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/backend/scripts/run_e2e_local.py",
+      "cwd": "${workspaceFolder}/backend",
+      "envFile": "${workspaceFolder}/backend/.env",
+      "python": "${workspaceFolder}/backend/.venv/bin/python",
+      "console": "integratedTerminal"
+    },
+    {
+      "name": "FastAPI: AI Evaluation Golden Set",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/backend/scripts/eval_ai_golden_set.py",
+      "cwd": "${workspaceFolder}/backend",
+      "envFile": "${workspaceFolder}/backend/.env",
+      "python": "${workspaceFolder}/backend/.venv/bin/python",
+      "console": "integratedTerminal"
+    },
+    {
+      "name": "Pytest: Current Test File",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "pytest",
+      "args": [
+        "-v",
+        "${file}"
+      ],
+      "cwd": "${workspaceFolder}/backend",
+      "envFile": "${workspaceFolder}/backend/.env",
+      "python": "${workspaceFolder}/backend/.venv/bin/python",
+      "console": "integratedTerminal"
+    },
+    {
+      "name": "Flutter: Mobile (Default)",
+      "type": "dart",
+      "request": "launch",
+      "program": "lib/main.dart",
+      "cwd": "mobile",
+      "args": [
+        "--dart-define=API_BASE_URL=http://localhost:8001"
+      ]
+    },
+    {
+      "name": "Flutter: Mobile (Chrome Web)",
+      "type": "dart",
+      "request": "launch",
+      "program": "lib/main.dart",
+      "cwd": "mobile",
+      "deviceId": "chrome",
+      "args": [
+        "--dart-define=API_BASE_URL=http://localhost:8001"
+      ]
+    },
+    {
+      "name": "Flutter: Mobile (Android Emulator)",
+      "type": "dart",
+      "request": "launch",
+      "program": "lib/main.dart",
+      "cwd": "mobile",
+      "args": [
+        "--dart-define=API_BASE_URL=http://10.0.2.2:8001"
+      ]
+    },
+    {
+      "name": "Flutter: Mobile (Profile Mode)",
+      "type": "dart",
+      "request": "launch",
+      "program": "lib/main.dart",
+      "cwd": "mobile",
+      "flutterMode": "profile",
+      "args": [
+        "--dart-define=API_BASE_URL=http://localhost:8001"
+      ]
+    }
+  ]
+}
