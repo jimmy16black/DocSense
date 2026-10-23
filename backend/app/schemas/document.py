@@ -76,3 +76,23 @@ class DocumentEvent(BaseModel):
     progress_percentage: int = Field(..., alias="progressPercentage")
     timestamp: datetime = Field(default_factory=datetime.utcnow)
     message: str | None = None
+
+
+class UploadCompleteRequest(BaseModel):
+    """Optional client-declared integrity data for upload verification."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    checksum_sha256: str | None = Field(
+        None, alias="checksumSha256", min_length=64, max_length=64, pattern=r"^[0-9a-fA-F]{64}$"
+    )
+
+
+class UploadCompleteResponse(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    document_id: UUID = Field(..., alias="documentId")
+    status: str
+    verified_size_bytes: int = Field(..., alias="verifiedSizeBytes")
+    checksum_sha256: str | None = Field(None, alias="checksumSha256")
+    message: str

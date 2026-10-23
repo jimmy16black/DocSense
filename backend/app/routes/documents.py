@@ -1,3 +1,5 @@
+import hashlib
+import re
 import uuid
 
 from fastapi import APIRouter, Depends
@@ -30,6 +32,8 @@ from app.schemas.document import (
     DocumentResponse,
     DocumentUploadInitRequest,
     DocumentUploadInitResponse,
+    UploadCompleteRequest,
+    UploadCompleteResponse,
 )
 from app.schemas.extraction import ExtractionEnvelope
 from app.schemas.qa import AskRequest, AskResponse, CompareRequest, CompareResponse, ComparisonItem
@@ -41,6 +45,37 @@ router = APIRouter(prefix="/documents", tags=["Documents"])
 logger = get_logger("routes.documents")
 settings = get_settings()
 
+# ISSUE-002: only ever place objects we can identify by content magic.
+_MAGIC_SIGNATURES: tuple[tuple[bytes, str], ...] = (
+    (b"%PDF-", "application/pdf"),
+    (b"\xff\xd8\xff", "image/jpeg"),
+    (b"\x89PNG\r\n\x1a\n", "image/png"),
+)
+
+
+def _sniff_mime(data: bytes) -> str | None:
+    """Return the MIME type implied by the object's leading magic bytes."""
+    for magic, mime in _MAGIC_SIGNATURES:
+        if data.startswith(magic):
+            return mime
+    # RIFF....WEBP
+    if len(data) >= 12 and data[:4] == b"RIFF" and data[8:12] == b"WEBP":
+        return "image/webp"
+    return None
+
+
+def _safe_file_name(raw_name: str) -> str:
+    """Strip directory components and path-traversal from a client file name.
+
+    ISSUE-002: `file_name` used to be interpolated raw into `storage_path`,
+    allowing "../" segments to escape the per-user prefix.
+    """
+    name = raw_name.replace("\\", "/").rsplit("/", 1)[-1].strip()
+    name = re.sub(r"[^A-Za-z0-9 ._-]", "_", name)
+    if not name or name in {".", ".."}:
+        raise ValidationError("Invalid file name.")
+    return name[:255]
+
 
 @router.post("/upload-init", response_model=APIResponse[DocumentUploadInitResponse])
 async def init_upload(
@@ -50,7 +85,10 @@ async def init_upload(
 ):
     """
     Initialize secure presigned document upload to Cloudflare R2 vault.
-    Validates file extension, size, and MIME type.
+    Validates file extension, size, and MIME type; sanitizes the file name so
+    it cannot escape the per-user storage prefix (ISSUE-002). The document is
+    created in PENDING_UPLOAD state and may only advance after the server has
+    verified the bytes that actually landed via /upload-complete.
     """
     if req.file_size_bytes > settings.MAX_UPLOAD_SIZE_BYTES:
         raise ValidationError(
@@ -62,23 +100,25 @@ async def init_upload(
             f"MIME type '{req.mime_type}' is not supported. Allowed types: {', '.join(settings.ALLOWED_MIME_TYPES)}"
         )
 
+    safe_name = _safe_file_name(req.file_name)
     doc_id = uuid.uuid4()
-    storage_path = f"users/{current_user.id}/documents/{doc_id}/{req.file_name}"
+    storage_path = f"users/{current_user.id}/documents/{doc_id}/{safe_name}"
 
     upload_url, expires_at = storage_service.generate_upload_url(
         storage_path=storage_path,
         mime_type=req.mime_type,
+        expected_size_bytes=req.file_size_bytes,
     )
 
     document = Document(
         id=doc_id,
         user_id=current_user.id,
-        title=req.file_name.rsplit(".", 1)[0],
-        file_name=req.file_name,
+        title=safe_name.rsplit(".", 1)[0],
+        file_name=safe_name,
         file_size_bytes=req.file_size_bytes,
         mime_type=req.mime_type,
         storage_path=storage_path,
-        status=DocumentStatus.UPLOADED,
+        status=DocumentStatus.PENDING_UPLOAD,
         document_type=req.document_type,
     )
     db.add(document)
@@ -96,6 +136,132 @@ async def init_upload(
             expires_at=expires_at,
         ),
         message="Upload initialized successfully.",
+    )
+
+
+@router.post("/{document_id}/upload-complete", response_model=APIResponse[UploadCompleteResponse])
+async def complete_upload(
+    document_id: uuid.UUID,
+    req: UploadCompleteRequest,
+    current_user: CurrentUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+):
+    """Verify uploaded bytes server-side before the lifecycle advances (ISSUE-002).
+
+    Checks, against the object that ACTUALLY landed in storage:
+      1. existence (client must finish the presigned PUT first),
+      2. declared vs real size (quota accounting integrity),
+      3. max-size cap,
+      4. magic-byte sniffing — content must match its declared MIME type,
+      5. optional client-supplied SHA-256 checksum.
+
+    On any mismatch the document transitions UPLOADED -> FAILED with a
+    USER_ACTION_REQUIRED classification and no processing is possible.
+    Repeating this call after success is idempotent.
+    """
+    query = select(Document).where(Document.id == document_id)
+    result = await db.execute(query)
+    document = result.scalar_one_or_none()
+
+    if not document:
+        raise ResourceNotFoundError(f"Document with ID {document_id} was not found.")
+
+    if document.user_id != current_user.id:
+        raise PermissionDeniedError("You do not have access to this document.")
+
+    # Idempotent replay: already verified — report the stored truth.
+    # (UPLOADED with a recorded checksum means verification already passed;
+    # re-verifying is harmless but we short-circuit for determinism.)
+    if document.status not in (DocumentStatus.PENDING_UPLOAD,) and (
+        document.metadata_json or {}
+    ).get("checksum_sha256"):
+        return APIResponse(
+            success=True,
+            data=UploadCompleteResponse(
+                document_id=document.id,
+                status=document.status,
+                verified_size_bytes=document.file_size_bytes,
+                checksum_sha256=(document.metadata_json or {}).get("checksum_sha256"),
+                message="Upload already verified.",
+            ),
+        )
+
+    if document.status not in (DocumentStatus.PENDING_UPLOAD, DocumentStatus.UPLOADED):
+        raise ValidationError(
+            f"Document is in state {document.status} and cannot accept upload completion."
+        )
+
+    async def _fail(reason: str) -> None:
+        document.status = DocumentStatus.FAILED
+        document.error_message = reason[:2000]
+        await commit_now(db)
+        logger.warning("Upload verification failed", document_id=str(document_id), reason=reason)
+        raise ValidationError(reason)
+
+    stat = storage_service.head_object(document.storage_path)
+    if not stat.exists:
+        await _fail(
+            "No object found at the expected storage location. "
+            "Complete the presigned PUT upload before calling upload-complete."
+        )
+
+    if stat.size_bytes > settings.MAX_UPLOAD_SIZE_BYTES:
+        await _fail(
+            f"Uploaded file exceeds the maximum allowed size of "
+            f"{settings.MAX_UPLOAD_SIZE_BYTES // (1024 * 1024)} MB."
+        )
+
+    if stat.size_bytes != document.file_size_bytes:
+        await _fail(
+            "Uploaded file size does not match the size declared at upload-init "
+            f"(declared {document.file_size_bytes} bytes, stored {stat.size_bytes} bytes)."
+        )
+
+    data = storage_service.download_file(document.storage_path)
+    detected = _sniff_mime(data)
+    if detected is None:
+        await _fail("Uploaded content is not a recognized PDF/JPEG/PNG/WEBP file.")
+    if detected != document.mime_type:
+        await _fail(
+            f"Declared MIME type '{document.mime_type}' does not match the actual "
+            f"content type '{detected}' detected from file signature."
+        )
+
+    # For PDFs, additionally require that the object actually parses and its
+    # page count is within limits — blocks crafted/corrupt files reaching the
+    # ingestion pipeline (ISSUE-002).
+    if detected == "application/pdf":
+        try:
+            parsed_pages = pdf_extractor_service.extract_text_from_pdf_bytes(data)
+        except Exception as exc:
+            await _fail(f"Uploaded PDF could not be parsed: {str(exc)[:300]}")
+        if len(parsed_pages) > settings.MAX_PAGE_COUNT:
+            await _fail(
+                f"PDF has {len(parsed_pages)} pages; maximum supported is {settings.MAX_PAGE_COUNT}."
+            )
+
+    computed = hashlib.sha256(data).hexdigest()
+    if req.checksum_sha256 and req.checksum_sha256.lower() != computed:
+        await _fail("SHA-256 checksum mismatch between uploaded bytes and client-declared value.")
+
+    document.status = DocumentStatus.UPLOADED
+    document.metadata_json = {
+        **(document.metadata_json or {}),
+        "checksum_sha256": computed,
+        "verified_size_bytes": stat.size_bytes,
+        "etag": stat.etag,
+    }
+    await commit_now(db)
+
+    return APIResponse(
+        success=True,
+        data=UploadCompleteResponse(
+            document_id=document.id,
+            status=DocumentStatus.UPLOADED,
+            verified_size_bytes=stat.size_bytes,
+            checksum_sha256=computed,
+            message="Upload verified successfully.",
+        ),
     )
 
 
@@ -119,6 +285,19 @@ async def process_document(
 
     if document.user_id != current_user.id:
         raise PermissionDeniedError("You do not have access to process this document.")
+
+    # ISSUE-002: processing may only start on server-verified bytes. A client
+    # that skipped (or failed) /upload-complete cannot advance the lifecycle.
+    if document.status == DocumentStatus.PENDING_UPLOAD:
+        raise ValidationError(
+            "Upload has not been verified yet. Call POST /documents/"
+            f"{document_id}/upload-complete after the PUT finishes."
+        )
+    if document.status == DocumentStatus.FAILED and not req.force_reprocess:
+        raise ValidationError(
+            "Document is in FAILED state. Reprocess with forceReprocess=true "
+            "after correcting the upload."
+        )
 
     # Idempotency check: if already completed and not force reprocess
     if document.status == DocumentStatus.COMPLETED and not req.force_reprocess:

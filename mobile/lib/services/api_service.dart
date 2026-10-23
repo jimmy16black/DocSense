@@ -27,6 +27,38 @@ class ApiService {
     return response.data['data'] as Map<String, dynamic>;
   }
 
+  /// Uploads the raw bytes to the presigned URL returned by [initUpload].
+  /// ISSUE-002: the server will not accept /process until it has verified
+  /// these bytes via [completeUpload].
+  Future<void> putPresigned({
+    required String uploadUrl,
+    required List<int> bytes,
+    required String mimeType,
+  }) async {
+    await client.dio.put<void>(
+      uploadUrl,
+      data: bytes,
+      options: Options(
+        headers: {'Content-Type': mimeType},
+        responseType: ResponseType.plain,
+      ),
+    );
+  }
+
+  /// Server-side verification of the uploaded object (size/MIME/checksum).
+  Future<Map<String, dynamic>> completeUpload(
+    String documentId, {
+    String? checksumSha256,
+  }) async {
+    final response = await client.dio.post(
+      '/api/v1/documents/$documentId/upload-complete',
+      data: {
+        if (checksumSha256 != null) 'checksumSha256': checksumSha256,
+      },
+    );
+    return response.data['data'] as Map<String, dynamic>;
+  }
+
   Future<Map<String, dynamic>> processDocument(
     String documentId, {
     bool forceReprocess = false,

@@ -122,3 +122,15 @@ GitHub issue files: see `.github/issues/ISSUE-001 … ISSUE-016.md` (title = fro
 - **Test suite**: 19 passed (was 17, +2 security regression tests).
 
 **Remaining P0**: #002 (upload completion verification), #003 (real ingestion pipeline replacing mock pages), #004 (hybrid RAG with real embeddings) — these require infra (worker queue, pgvector migration, AI gateway wiring) and are next in sequence.
+
+
+---
+
+## Changelog — 2026-10-23 (Batch 2): ISSUE-002 closed
+Server-side upload integrity verification shipped:
+- `PENDING_UPLOAD` state + `/upload-complete` verification endpoint (existence, size match, max cap, magic-byte MIME sniff, PDF parseability + page limit, SHA-256 checksum) with durable FAILED transitions and idempotent replays.
+- `/process` hard-gated on verified uploads; status CHECK-constraint migration added.
+- `file_name` path-traversal sanitization; presign binds ContentType (+size range).
+- Dev/CI mock storage replaced by a real in-memory vault so verification is exercised without cloud creds.
+- Flutter upload flow now does PUT → upload-complete (client checksum) → process; friendly error surfacing.
+- Backend suite green: 24 passed (6 new ISSUE-002 regression tests).

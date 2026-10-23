@@ -19,6 +19,9 @@ from app.db.base import Base
 
 
 class DocumentStatus(str):
+    # Set at upload-init; only /upload-complete may promote to UPLOADED
+    # after server-side verification of the stored bytes (ISSUE-002).
+    PENDING_UPLOAD = "PENDING_UPLOAD"
     UPLOADED = "UPLOADED"
     VALIDATING = "VALIDATING"
     OCR_RUNNING = "OCR_RUNNING"

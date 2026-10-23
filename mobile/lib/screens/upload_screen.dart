@@ -1,3 +1,9 @@
+import 'dart:io' show File;
+
+import 'package:dio/dio.dart';
+
+import 'package:convert/convert.dart';
+import 'package:crypto/crypto.dart';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import '../core/theme/app_theme.dart';
@@ -55,23 +61,60 @@ class _UploadScreenState extends State<UploadScreen> {
       final initData = await _apiService.initUpload(
         fileName: _selectedFile!.name,
         fileSizeBytes: _selectedFile!.size,
-        mimeType: _selectedFile!.extension == 'pdf' ? 'application/pdf' : 'image/jpeg',
+        mimeType: _selectedFile!.extension == 'pdf'
+            ? 'application/pdf'
+            : (_selectedFile!.extension == 'png'
+                ? 'image/png'
+                : (_selectedFile!.extension == 'webp'
+                    ? 'image/webp'
+                    : 'image/jpeg')),
         documentType: _documentType,
       );
 
       final documentId = initData['documentId'] as String;
+      final uploadUrl = initData['uploadUrl'] as String;
 
+      // ISSUE-002: actually PUT the bytes to the presigned vault URL, then
+      // let the server verify them before processing is allowed.
       setState(() {
-        _currentStep = 'Reading pages and validating document structure...';
+        _currentStep = 'Uploading encrypted copy to your private vault...';
       });
 
-      await Future.delayed(const Duration(milliseconds: 600));
+      // file_picker returns in-memory bytes on web; on mobile platforms we
+      // must read from the picked path.
+      final bytes = _selectedFile!.bytes ??
+          (_selectedFile!.path != null
+              ? await File(_selectedFile!.path!).readAsBytes()
+              : null);
+      if (bytes == null) {
+        throw Exception('Could not read the selected file. Please pick it again.');
+      }
+      final mimeType = _selectedFile!.extension == 'pdf'
+          ? 'application/pdf'
+          : (_selectedFile!.extension == 'png'
+              ? 'image/png'
+              : (_selectedFile!.extension == 'webp'
+                  ? 'image/webp'
+                  : 'image/jpeg'));
+
+      await _apiService.putPresigned(
+        uploadUrl: uploadUrl,
+        bytes: bytes,
+        mimeType: mimeType,
+      );
+
+      setState(() {
+        _currentStep = 'Verifying upload integrity...';
+      });
+
+      final checksum = sha256.convert(bytes).toString();
+      await _apiService.completeUpload(documentId, checksumSha256: checksum);
 
       setState(() {
         _currentStep = 'Extracting structured facts and verifying citations...';
       });
 
-      final processData = await _apiService.processDocument(documentId);
+      await _apiService.processDocument(documentId);
 
       if (!mounted) return;
 
@@ -86,8 +129,13 @@ class _UploadScreenState extends State<UploadScreen> {
         _isUploading = false;
       });
       if (!mounted) return;
+      final detail = e is DioException
+          ? (e.response?.data is Map
+              ? (e.response!.data['error']?['message'] ?? 'Upload failed. Please try again.')
+              : 'Upload failed. Please try again.')
+          : 'Something went wrong. Please try again.';
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Processing failed: $e')),
+        SnackBar(content: Text(detail.toString()), backgroundColor: AppColors.riskHigh),
       );
     }
   }
