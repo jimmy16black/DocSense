@@ -1,0 +1,44 @@
+name: AI Evaluation Golden Set Nightly
+
+on:
+  schedule:
+    # Run nightly at 02:00 UTC
+    - cron: "0 2 * * *"
+  workflow_dispatch:
+    inputs:
+      gate_threshold_override:
+        description: "Optional threshold override"
+        required: false
+        default: ""
+
+jobs:
+  ai-evaluation:
+    name: Golden Set Quality, Refusal & Safety Harness
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        run: |
+          cd backend
+          uv sync --all-groups
+
+      - name: Run AI Evaluation Golden Set
+        env:
+          APP_ENV: test
+          ALLOW_TEST_TOKENS: "true"
+        run: |
+          cd backend
+          uv run python scripts/eval_ai_golden_set.py

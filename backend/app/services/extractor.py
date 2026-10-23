@@ -1,4 +1,5 @@
 import json
+import unicodedata
 
 import pymupdf
 
@@ -81,11 +82,13 @@ class PDFExtractorService:
         """
         Verifies that citations exist in the document text to prevent hallucinations.
         """
-        normalized_full_text = " ".join(full_text.lower().split())
+        normalized_full_text = " ".join(unicodedata.normalize("NFKC", full_text).casefold().split())
         validated_citations = []
 
         for citation in envelope.citations:
-            normalized_quote = " ".join(citation.exact_quote.lower().split())
+            normalized_quote = " ".join(
+                unicodedata.normalize("NFKC", citation.exact_quote).casefold().split()
+            )
             if normalized_quote in normalized_full_text:
                 validated_citations.append(citation)
             else:

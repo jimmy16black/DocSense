@@ -35,6 +35,7 @@ dev = [
     "ruff>=0.7.0",
     "mypy>=1.13.0",
     "types-redis>=4.6.0",
+    "hypothesis>=6.170.8",
 ]
 
 [build-system]
@@ -67,4 +68,8 @@ ignore_missing_imports = true
 asyncio_mode = "auto"
 testpaths = ["tests"]
 python_files = ["test_*.py"]
-filterwarnings = ["ignore::DeprecationWarning"]
+filterwarnings = [
+    "ignore:builtin type SwigPy.*:DeprecationWarning",
+    "ignore:builtin type swigvarlink.*:DeprecationWarning",
+    "ignore::DeprecationWarning:fitz",
+]

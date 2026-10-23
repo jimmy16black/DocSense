@@ -1,6 +1,6 @@
 import uuid
 from datetime import UTC, datetime
-from typing import Optional
+from typing import Any, Optional
 
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import (
@@ -18,7 +18,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base
 
 
-def _utcnow() -> datetime:
+def _utcnow(*args: Any, **kwargs: Any) -> datetime:
     """Timezone-aware UTC now (BE-1: replaces deprecated naive datetime.utcnow())."""
     return datetime.now(UTC)
 

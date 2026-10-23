@@ -64,12 +64,20 @@ app = FastAPI(
 )
 
 # CORS Middleware
+# Per W3C CORS and Fetch specification, wildcard '*' combined with allow_credentials=True
+# is invalid and rejected by modern browsers. Only enable credentials for explicit origins.
+cors_origins = (
+    settings.ALLOWED_ORIGINS
+    if isinstance(settings.ALLOWED_ORIGINS, list)
+    else [settings.ALLOWED_ORIGINS]
+)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.ALLOWED_ORIGINS,
-    allow_credentials=True,
-    allow_methods=["*"],
+    allow_origins=cors_origins,
+    allow_credentials="*" not in cors_origins,
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["*"],
+    expose_headers=["X-Request-ID", "Retry-After"],
 )
 
 

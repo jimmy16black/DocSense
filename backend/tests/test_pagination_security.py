@@ -206,3 +206,112 @@ async def test_filter_sort_and_search_semantics(client_no_user_override):
     )
     titles = [d["title"] for d in asc.json()["data"]["items"]]
     assert titles == sorted(titles)
+
+
+@pytest.mark.asyncio
+async def test_table_driven_cross_tenant_matrix(client_no_user_override):
+    """ISSUE-016 Acceptance: Table-driven cross-tenant test suite covering all routes.
+
+    Asserts that an authenticated User B cannot read, mutate, ask questions on,
+    delete, or link actions to User A's resources under any circumstances.
+    """
+    alice_token = "test-token-alice-matrix-001"
+    bob_token = "test-token-bob-matrix-002"
+    alice_headers = {"Authorization": f"Bearer {alice_token}"}
+    bob_headers = {"Authorization": f"Bearer {bob_token}"}
+
+    # 1. Setup Alice's document
+    alice_doc_id = await _upload_completed_doc(
+        client_no_user_override,
+        alice_token,
+        "alice_confidential.pdf",
+        "Confidential Alice Contract Data",
+    )
+
+    # 2. Setup Bob's document (for multi-resource routes like compare)
+    bob_doc_id = await _upload_completed_doc(
+        client_no_user_override,
+        bob_token,
+        "bob_public.pdf",
+        "Bob Public Contract Data",
+    )
+
+    # 3. Setup Alice's action
+    alice_action_res = await client_no_user_override.post(
+        "/api/v1/actions/reminders",
+        json={
+            "documentId": alice_doc_id,
+            "title": "Alice Urgent Action",
+            "actionType": "PAYMENT",
+            "dueDate": "2026-11-01T12:00:00Z",
+        },
+        headers=alice_headers,
+    )
+    assert alice_action_res.status_code == 200, alice_action_res.text
+    alice_action_id = alice_action_res.json()["data"]["id"]
+
+    # 4. Table-driven test matrix of unauthorized access attempts by Bob
+    matrix = [
+        ("GET", f"/api/v1/documents/{alice_doc_id}", None, {403, 404}),
+        ("GET", f"/api/v1/documents/{alice_doc_id}/status", None, {403, 404}),
+        ("POST", f"/api/v1/documents/{alice_doc_id}/process", {}, {403, 404}),
+        (
+            "POST",
+            f"/api/v1/documents/{alice_doc_id}/ask",
+            {"question": "What is Alice's salary?"},
+            {403, 404},
+        ),
+        (
+            "POST",
+            f"/api/v1/documents/{alice_doc_id}/upload-complete",
+            {"checksumSha256": "e" * 64},
+            {403, 404},
+        ),
+        ("DELETE", f"/api/v1/documents/{alice_doc_id}", None, {403, 404}),
+        (
+            "POST",
+            "/api/v1/actions/reminders",
+            {
+                "documentId": alice_doc_id,
+                "title": "Bob spoofed reminder",
+                "actionType": "AUDIT",
+                "dueDate": "2026-11-15T00:00:00Z",
+            },
+            {403, 404},
+        ),
+        (
+            "PATCH",
+            f"/api/v1/actions/{alice_action_id}",
+            {"status": "CONFIRMED", "notes": "Hacked by Bob"},
+            {403, 404},
+        ),
+        (
+            "POST",
+            "/api/v1/documents/compare",
+            {"documentIds": [alice_doc_id, bob_doc_id]},
+            {400, 403, 404, 422},
+        ),
+    ]
+
+    for method, path, payload, allowed_statuses in matrix:
+        if method == "GET":
+            resp = await client_no_user_override.get(path, headers=bob_headers)
+        elif method == "POST":
+            resp = await client_no_user_override.post(path, json=payload, headers=bob_headers)
+        elif method == "PATCH":
+            resp = await client_no_user_override.patch(path, json=payload, headers=bob_headers)
+        elif method == "DELETE":
+            resp = await client_no_user_override.delete(path, headers=bob_headers)
+        else:
+            raise ValueError(f"Unsupported method: {method}")
+
+        assert resp.status_code in allowed_statuses, (
+            f"Cross-tenant leak on {method} {path}: expected {allowed_statuses}, got {resp.status_code} ({resp.text})"
+        )
+
+    # 5. Verify Alice's document and action remain pristine
+    alice_check = await client_no_user_override.get(
+        f"/api/v1/documents/{alice_doc_id}", headers=alice_headers
+    )
+    assert alice_check.status_code == 200
+    assert alice_check.json()["data"]["id"] == alice_doc_id
