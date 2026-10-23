@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../core/theme/app_theme.dart';
 import '../models/extraction_model.dart';
 
@@ -26,7 +27,11 @@ class CitationCard extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  const Icon(Icons.bookmark_outline, size: 16, color: AppColors.primary),
+                  const Icon(
+                    Icons.bookmark_outline,
+                    size: 16,
+                    color: AppColors.primary,
+                  ),
                   const SizedBox(width: 4),
                   Text(
                     'Page ${citation.pageNumber}',

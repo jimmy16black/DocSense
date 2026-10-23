@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../models/document_model.dart';
 import '../services/api_service.dart';
 
@@ -13,18 +14,24 @@ class DocumentListFilter {
   const DocumentListFilter({this.search = '', this.status});
 
   DocumentListFilter copyWith({String? search, String? status}) =>
-      DocumentListFilter(search: search ?? this.search, status: status ?? this.status);
+      DocumentListFilter(
+        search: search ?? this.search,
+        status: status ?? this.status,
+      );
 
   @override
   bool operator ==(Object other) =>
-      other is DocumentListFilter && other.search == search && other.status == status;
+      other is DocumentListFilter &&
+      other.search == search &&
+      other.status == status;
 
   @override
   int get hashCode => Object.hash(search, status);
 }
 
-final documentListFilterProvider =
-    StateProvider<DocumentListFilter>((ref) => const DocumentListFilter());
+final documentListFilterProvider = StateProvider<DocumentListFilter>(
+  (ref) => const DocumentListFilter(),
+);
 
 /// How many items to fetch (grows in steps of 20 via "Load more").
 final documentPageSizeProvider = StateProvider<int>((ref) => 20);
@@ -41,7 +48,10 @@ final documentListProvider = FutureProvider<DocumentListResult>((ref) async {
   );
 });
 
-final documentDetailProvider = FutureProvider.family<DocumentModel, String>((ref, documentId) async {
+final documentDetailProvider = FutureProvider.family<DocumentModel, String>((
+  ref,
+  documentId,
+) async {
   final api = ref.watch(apiServiceProvider);
   return api.getDocument(documentId);
 });

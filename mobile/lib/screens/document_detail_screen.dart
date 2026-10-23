@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../core/theme/app_theme.dart';
 import '../models/document_model.dart';
 import '../providers/documents_provider.dart';
@@ -28,9 +29,8 @@ class DocumentDetailScreen extends ConsumerWidget {
       ),
       body: docAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (err, stack) => Center(
-          child: Text('Failed to load document: $err'),
-        ),
+        error: (err, stack) =>
+            Center(child: Text('Failed to load document: $err')),
         data: (doc) {
           final extraction = doc.latestExtraction;
 
@@ -58,7 +58,9 @@ class DocumentDetailScreen extends ConsumerWidget {
                             ),
                           ),
                           ConfidenceBadge(
-                            confidence: doc.confidenceScore != null && doc.confidenceScore! > 0.8
+                            confidence:
+                                doc.confidenceScore != null &&
+                                    doc.confidenceScore! > 0.8
                                 ? 'HIGH'
                                 : 'MEDIUM',
                           ),
@@ -80,7 +82,8 @@ class DocumentDetailScreen extends ConsumerWidget {
               const SizedBox(height: AppSpacing.md),
 
               // Important Alerts (High / Medium Severity Banners)
-              if (extraction != null && extraction.importantAlerts.isNotEmpty) ...[
+              if (extraction != null &&
+                  extraction.importantAlerts.isNotEmpty) ...[
                 const Text(
                   'Critical Alerts & Exclusions',
                   style: TextStyle(
@@ -102,7 +105,11 @@ class DocumentDetailScreen extends ConsumerWidget {
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Icon(Icons.warning_amber_rounded, color: AppColors.riskHigh, size: 20),
+                        const Icon(
+                          Icons.warning_amber_rounded,
+                          color: AppColors.riskHigh,
+                          size: 20,
+                        ),
                         const SizedBox(width: AppSpacing.sm),
                         Expanded(
                           child: Text(
@@ -122,7 +129,8 @@ class DocumentDetailScreen extends ConsumerWidget {
               ],
 
               // Key Summary Bullets
-              if (extraction != null && extraction.summaryBullets.isNotEmpty) ...[
+              if (extraction != null &&
+                  extraction.summaryBullets.isNotEmpty) ...[
                 Card(
                   child: Padding(
                     padding: const EdgeInsets.all(AppSpacing.lg),
@@ -140,15 +148,23 @@ class DocumentDetailScreen extends ConsumerWidget {
                         const SizedBox(height: AppSpacing.sm),
                         ...extraction.summaryBullets.map(
                           (bullet) => Padding(
-                            padding: const EdgeInsets.only(bottom: AppSpacing.xs),
+                            padding: const EdgeInsets.only(
+                              bottom: AppSpacing.xs,
+                            ),
                             child: Row(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                const Text('• ', style: TextStyle(fontWeight: FontWeight.bold)),
+                                const Text(
+                                  '• ',
+                                  style: TextStyle(fontWeight: FontWeight.bold),
+                                ),
                                 Expanded(
                                   child: Text(
                                     bullet,
-                                    style: const TextStyle(fontSize: 14, color: AppColors.textPrimary),
+                                    style: const TextStyle(
+                                      fontSize: 14,
+                                      color: AppColors.textPrimary,
+                                    ),
                                   ),
                                 ),
                               ],
@@ -187,10 +203,14 @@ class DocumentDetailScreen extends ConsumerWidget {
                               children: [
                                 Text(
                                   entry.key,
-                                  style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                                  style: const TextStyle(
+                                    fontSize: 13,
+                                    color: AppColors.textSecondary,
+                                  ),
                                 ),
                                 Text(
-                                  entry.value?.toString() ?? '[Not specified in document]',
+                                  entry.value?.toString() ??
+                                      '[Not specified in document]',
                                   style: const TextStyle(
                                     fontSize: 13,
                                     fontWeight: FontWeight.w600,
@@ -227,9 +247,7 @@ class DocumentDetailScreen extends ConsumerWidget {
                 onPressed: () {
                   Navigator.push(
                     context,
-                    MaterialPageRoute(
-                      builder: (_) => QAScreen(document: doc),
-                    ),
+                    MaterialPageRoute(builder: (_) => QAScreen(document: doc)),
                   );
                 },
                 icon: const Icon(Icons.chat_outlined),

@@ -47,17 +47,24 @@ class DocumentModel {
       documentType: json['documentType'] ?? json['document_type'],
       confidenceScore: json['confidenceScore'] != null
           ? (json['confidenceScore'] as num).toDouble()
-          : (json['confidence_score'] != null ? (json['confidence_score'] as num).toDouble() : null),
+          : (json['confidence_score'] != null
+                ? (json['confidence_score'] as num).toDouble()
+                : null),
       pageCount: json['pageCount'] ?? json['page_count'] ?? 0,
       errorMessage: json['errorMessage'] ?? json['error_message'],
-      createdAt: DateTime.tryParse(json['createdAt'] ?? json['created_at'] ?? '') ?? DateTime.now(),
-      updatedAt: DateTime.tryParse(json['updatedAt'] ?? json['updated_at'] ?? '') ?? DateTime.now(),
+      createdAt:
+          DateTime.tryParse(json['createdAt'] ?? json['created_at'] ?? '') ??
+          DateTime.now(),
+      updatedAt:
+          DateTime.tryParse(json['updatedAt'] ?? json['updated_at'] ?? '') ??
+          DateTime.now(),
       latestExtraction: json['latestExtraction'] != null
           ? ExtractionEnvelope.fromJson(json['latestExtraction'])
           : (json['latest_extraction'] != null
-              ? ExtractionEnvelope.fromJson(json['latest_extraction'])
-              : null),
-      citations: (json['citations'] as List<dynamic>?)
+                ? ExtractionEnvelope.fromJson(json['latest_extraction'])
+                : null),
+      citations:
+          (json['citations'] as List<dynamic>?)
               ?.map((e) => CitationModel.fromJson(e as Map<String, dynamic>))
               .toList() ??
           [],
@@ -82,12 +89,13 @@ class PaginationMeta {
   });
 
   factory PaginationMeta.fromJson(Map<String, dynamic> json) => PaginationMeta(
-        page: (json['page'] as num?)?.toInt() ?? 1,
-        pageSize: (json['pageSize'] ?? json['page_size'] as num?)?.toInt() ?? 20,
-        total: (json['total'] as num?)?.toInt() ?? 0,
-        totalPages: (json['totalPages'] ?? json['total_pages'] as num?)?.toInt() ?? 0,
-        hasNext: (json['hasNext'] ?? json['has_next']) == true,
-      );
+    page: (json['page'] as num?)?.toInt() ?? 1,
+    pageSize: (json['pageSize'] ?? json['page_size'] as num?)?.toInt() ?? 20,
+    total: (json['total'] as num?)?.toInt() ?? 0,
+    totalPages:
+        (json['totalPages'] ?? json['total_pages'] as num?)?.toInt() ?? 0,
+    hasNext: (json['hasNext'] ?? json['has_next']) == true,
+  );
 }
 
 class DocumentListResult {
@@ -100,10 +108,18 @@ class DocumentListResult {
     final rawItems = (json['items'] as List<dynamic>?) ?? const [];
     final pg = json['pagination'];
     return DocumentListResult(
-      items: rawItems.map((e) => DocumentModel.fromJson(e as Map<String, dynamic>)).toList(),
+      items: rawItems
+          .map((e) => DocumentModel.fromJson(e as Map<String, dynamic>))
+          .toList(),
       pagination: pg is Map<String, dynamic>
           ? PaginationMeta.fromJson(pg)
-          : PaginationMeta(page: 1, pageSize: rawItems.length, total: rawItems.length, totalPages: 1, hasNext: false),
+          : PaginationMeta(
+              page: 1,
+              pageSize: rawItems.length,
+              total: rawItems.length,
+              totalPages: 1,
+              hasNext: false,
+            ),
     );
   }
 }

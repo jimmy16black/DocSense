@@ -54,26 +54,36 @@ class ExtractionEnvelope {
   factory ExtractionEnvelope.fromJson(Map<String, dynamic> json) {
     return ExtractionEnvelope(
       documentType: json['documentType'] ?? json['document_type'] ?? 'OTHER',
-      confidenceScore: (json['confidenceScore'] ?? json['confidence_score'] ?? 0.0).toDouble(),
+      confidenceScore:
+          (json['confidenceScore'] ?? json['confidence_score'] ?? 0.0)
+              .toDouble(),
       title: json['title'] ?? 'Untitled Document',
-      summaryBullets: (json['summaryBullets'] ?? json['summary_bullets'] as List<dynamic>?)
+      summaryBullets:
+          (json['summaryBullets'] ?? json['summary_bullets'] as List<dynamic>?)
               ?.map((e) => e.toString())
               .toList() ??
           [],
-      importantAlerts: (json['importantAlerts'] ?? json['important_alerts'] as List<dynamic>?)
+      importantAlerts:
+          (json['importantAlerts'] ??
+                  json['important_alerts'] as List<dynamic>?)
               ?.map((e) => e.toString())
               .toList() ??
           [],
-      suggestedQuestions: (json['suggestedQuestions'] ?? json['suggested_questions'] as List<dynamic>?)
+      suggestedQuestions:
+          (json['suggestedQuestions'] ??
+                  json['suggested_questions'] as List<dynamic>?)
               ?.map((e) => e.toString())
               .toList() ??
           [],
-      recommendedActions: (json['recommendedActions'] ?? json['recommended_actions'] as List<dynamic>?)
+      recommendedActions:
+          (json['recommendedActions'] ??
+                  json['recommended_actions'] as List<dynamic>?)
               ?.map((e) => e as Map<String, dynamic>)
               .toList() ??
           [],
       payload: (json['payload'] as Map<String, dynamic>?) ?? {},
-      citations: (json['citations'] as List<dynamic>?)
+      citations:
+          (json['citations'] as List<dynamic>?)
               ?.map((e) => CitationModel.fromJson(e as Map<String, dynamic>))
               .toList() ??
           [],

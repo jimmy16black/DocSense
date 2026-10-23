@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+
 import '../core/network/app_error.dart';
 import '../core/theme/app_theme.dart';
 import '../models/action_model.dart';
@@ -67,9 +68,8 @@ class _ActionsScreenState extends State<ActionsScreen> {
         if (!mounted) return;
         // BE-4: show only safe, friendly copy — never raw exception strings.
         final err = AppError.from(e);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(err.userMessage)),
-        );
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(err.userMessage)));
       }
     }
   }
@@ -87,7 +87,11 @@ class _ActionsScreenState extends State<ActionsScreen> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: const [
-              Icon(Icons.event_available, size: 64, color: AppColors.textTertiary),
+              Icon(
+                Icons.event_available,
+                size: 64,
+                color: AppColors.textTertiary,
+              ),
               SizedBox(height: AppSpacing.md),
               Text(
                 'No pending actions or reminders',
@@ -129,11 +133,17 @@ class _ActionsScreenState extends State<ActionsScreen> {
                       Expanded(
                         child: Text(
                           action.title,
-                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
                         decoration: BoxDecoration(
                           color: action.status == 'CONFIRMED'
                               ? const Color(0xFFDCFCE7)
@@ -157,7 +167,10 @@ class _ActionsScreenState extends State<ActionsScreen> {
                     const SizedBox(height: 4),
                     Text(
                       action.description!,
-                      style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: AppColors.textSecondary,
+                      ),
                     ),
                   ],
                   const SizedBox(height: AppSpacing.sm),
@@ -166,11 +179,18 @@ class _ActionsScreenState extends State<ActionsScreen> {
                     children: [
                       Row(
                         children: [
-                          const Icon(Icons.calendar_today, size: 14, color: AppColors.textTertiary),
+                          const Icon(
+                            Icons.calendar_today,
+                            size: 14,
+                            color: AppColors.textTertiary,
+                          ),
                           const SizedBox(width: 4),
                           Text(
                             'Due: $dueStr',
-                            style: const TextStyle(fontSize: 12, color: AppColors.textTertiary),
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: AppColors.textTertiary,
+                            ),
                           ),
                         ],
                       ),

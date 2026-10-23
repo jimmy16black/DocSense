@@ -19,15 +19,19 @@ class AskResponse {
     return AskResponse(
       answer: json['answer'] ?? '',
       confidence: json['confidence'] ?? 'HIGH',
-      citations: (json['citations'] as List<dynamic>?)
+      citations:
+          (json['citations'] as List<dynamic>?)
               ?.map((e) => CitationModel.fromJson(e as Map<String, dynamic>))
               .toList() ??
           [],
-      suggestedFollowUps: (json['suggestedFollowUps'] ?? json['suggested_follow_ups'] as List<dynamic>?)
+      suggestedFollowUps:
+          (json['suggestedFollowUps'] ??
+                  json['suggested_follow_ups'] as List<dynamic>?)
               ?.map((e) => e.toString())
               .toList() ??
           [],
-      groundedInEvidence: json['groundedInEvidence'] ?? json['grounded_in_evidence'] ?? true,
+      groundedInEvidence:
+          json['groundedInEvidence'] ?? json['grounded_in_evidence'] ?? true,
     );
   }
 }
@@ -69,11 +73,14 @@ class CompareResponse {
   factory CompareResponse.fromJson(Map<String, dynamic> json) {
     return CompareResponse(
       summary: json['summary'] ?? '',
-      comparisonMatrix: (json['comparisonMatrix'] ?? json['comparison_matrix'] as List<dynamic>?)
+      comparisonMatrix:
+          (json['comparisonMatrix'] ??
+                  json['comparison_matrix'] as List<dynamic>?)
               ?.map((e) => ComparisonItem.fromJson(e as Map<String, dynamic>))
               .toList() ??
           [],
-      recommendations: (json['recommendations'] as List<dynamic>?)
+      recommendations:
+          (json['recommendations'] as List<dynamic>?)
               ?.map((e) => e.toString())
               .toList() ??
           [],

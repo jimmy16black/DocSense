@@ -28,13 +28,20 @@ class ActionModel {
       id: json['id'] ?? '',
       documentId: json['documentId'] ?? json['document_id'] ?? '',
       userId: json['userId'] ?? json['user_id'] ?? '',
-      actionType: json['actionType'] ?? json['action_type'] ?? 'RENEWAL_REMINDER',
+      actionType:
+          json['actionType'] ?? json['action_type'] ?? 'RENEWAL_REMINDER',
       title: json['title'] ?? '',
       description: json['description'],
-      dueDate: json['dueDate'] != null ? DateTime.tryParse(json['dueDate']) : (json['due_date'] != null ? DateTime.tryParse(json['due_date']) : null),
+      dueDate: json['dueDate'] != null
+          ? DateTime.tryParse(json['dueDate'])
+          : (json['due_date'] != null
+                ? DateTime.tryParse(json['due_date'])
+                : null),
       status: json['status'] ?? 'PENDING',
       payload: (json['payload'] as Map<String, dynamic>?) ?? {},
-      createdAt: DateTime.tryParse(json['createdAt'] ?? json['created_at'] ?? '') ?? DateTime.now(),
+      createdAt:
+          DateTime.tryParse(json['createdAt'] ?? json['created_at'] ?? '') ??
+          DateTime.now(),
     );
   }
 }

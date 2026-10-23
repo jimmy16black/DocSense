@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+
 import '../core/network/api_client.dart';
 import '../models/action_model.dart';
 import '../models/document_model.dart';
@@ -52,9 +53,7 @@ class ApiService {
   }) async {
     final response = await client.dio.post(
       '/api/v1/documents/$documentId/upload-complete',
-      data: {
-        if (checksumSha256 != null) 'checksumSha256': checksumSha256,
-      },
+      data: {if (checksumSha256 != null) 'checksumSha256': checksumSha256},
     );
     return response.data['data'] as Map<String, dynamic>;
   }
@@ -96,7 +95,9 @@ class ApiService {
         if (search != null && search.trim().isNotEmpty) 'search': search.trim(),
       },
     );
-    return DocumentListResult.fromJson(response.data['data'] as Map<String, dynamic>);
+    return DocumentListResult.fromJson(
+      response.data['data'] as Map<String, dynamic>,
+    );
   }
 
   Future<AskResponse> askQuestion(String documentId, String question) async {
@@ -138,7 +139,9 @@ class ApiService {
   Future<List<ActionModel>> listActions() async {
     final response = await client.dio.get('/api/v1/actions');
     final list = response.data['data'] as List<dynamic>;
-    return list.map((e) => ActionModel.fromJson(e as Map<String, dynamic>)).toList();
+    return list
+        .map((e) => ActionModel.fromJson(e as Map<String, dynamic>))
+        .toList();
   }
 
   Future<ActionModel> updateAction(

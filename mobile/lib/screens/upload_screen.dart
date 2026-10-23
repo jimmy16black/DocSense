@@ -6,6 +6,7 @@ import 'package:convert/convert.dart';
 import 'package:crypto/crypto.dart';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
+
 import '../core/network/app_error.dart';
 import '../core/theme/app_theme.dart';
 import '../services/api_service.dart';
@@ -65,10 +66,10 @@ class _UploadScreenState extends State<UploadScreen> {
         mimeType: _selectedFile!.extension == 'pdf'
             ? 'application/pdf'
             : (_selectedFile!.extension == 'png'
-                ? 'image/png'
-                : (_selectedFile!.extension == 'webp'
-                    ? 'image/webp'
-                    : 'image/jpeg')),
+                  ? 'image/png'
+                  : (_selectedFile!.extension == 'webp'
+                        ? 'image/webp'
+                        : 'image/jpeg')),
         documentType: _documentType,
       );
 
@@ -83,20 +84,23 @@ class _UploadScreenState extends State<UploadScreen> {
 
       // file_picker returns in-memory bytes on web; on mobile platforms we
       // must read from the picked path.
-      final bytes = _selectedFile!.bytes ??
+      final bytes =
+          _selectedFile!.bytes ??
           (_selectedFile!.path != null
               ? await File(_selectedFile!.path!).readAsBytes()
               : null);
       if (bytes == null) {
-        throw Exception('Could not read the selected file. Please pick it again.');
+        throw Exception(
+          'Could not read the selected file. Please pick it again.',
+        );
       }
       final mimeType = _selectedFile!.extension == 'pdf'
           ? 'application/pdf'
           : (_selectedFile!.extension == 'png'
-              ? 'image/png'
-              : (_selectedFile!.extension == 'webp'
-                  ? 'image/webp'
-                  : 'image/jpeg'));
+                ? 'image/png'
+                : (_selectedFile!.extension == 'webp'
+                      ? 'image/webp'
+                      : 'image/jpeg'));
 
       await _apiService.putPresigned(
         uploadUrl: uploadUrl,
@@ -133,7 +137,10 @@ class _UploadScreenState extends State<UploadScreen> {
       // BE-4: structured error → friendly copy only.
       final err = AppError.from(e);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(err.userMessage), backgroundColor: AppColors.riskHigh),
+        SnackBar(
+          content: Text(err.userMessage),
+          backgroundColor: AppColors.riskHigh,
+        ),
       );
     }
   }
@@ -141,9 +148,7 @@ class _UploadScreenState extends State<UploadScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Upload Document'),
-      ),
+      appBar: AppBar(title: const Text('Upload Document')),
       body: Padding(
         padding: const EdgeInsets.all(AppSpacing.xl),
         child: Column(
@@ -163,11 +168,26 @@ class _UploadScreenState extends State<UploadScreen> {
                 value: _documentType,
                 decoration: const InputDecoration(),
                 items: const [
-                  DropdownMenuItem(value: 'INSURANCE_POLICY', child: Text('Insurance Policy')),
-                  DropdownMenuItem(value: 'GST_INVOICE', child: Text('GST Invoice / Tax Bill')),
-                  DropdownMenuItem(value: 'BILL_RECEIPT', child: Text('Utility Bill / Receipt')),
-                  DropdownMenuItem(value: 'CONTRACT', child: Text('Rental / Service Contract')),
-                  DropdownMenuItem(value: 'OTHER', child: Text('Other Document')),
+                  DropdownMenuItem(
+                    value: 'INSURANCE_POLICY',
+                    child: Text('Insurance Policy'),
+                  ),
+                  DropdownMenuItem(
+                    value: 'GST_INVOICE',
+                    child: Text('GST Invoice / Tax Bill'),
+                  ),
+                  DropdownMenuItem(
+                    value: 'BILL_RECEIPT',
+                    child: Text('Utility Bill / Receipt'),
+                  ),
+                  DropdownMenuItem(
+                    value: 'CONTRACT',
+                    child: Text('Rental / Service Contract'),
+                  ),
+                  DropdownMenuItem(
+                    value: 'OTHER',
+                    child: Text('Other Document'),
+                  ),
                 ],
                 onChanged: (val) {
                   if (val != null) setState(() => _documentType = val);
@@ -182,7 +202,9 @@ class _UploadScreenState extends State<UploadScreen> {
                     color: AppColors.elevated,
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                      color: _selectedFile != null ? AppColors.primary : const Color(0xFFD1D5DB),
+                      color: _selectedFile != null
+                          ? AppColors.primary
+                          : const Color(0xFFD1D5DB),
                       width: 2,
                     ),
                   ),
@@ -191,23 +213,34 @@ class _UploadScreenState extends State<UploadScreen> {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Icon(
-                          _selectedFile != null ? Icons.check_circle : Icons.cloud_upload_outlined,
+                          _selectedFile != null
+                              ? Icons.check_circle
+                              : Icons.cloud_upload_outlined,
                           size: 48,
-                          color: _selectedFile != null ? AppColors.success : AppColors.primary,
+                          color: _selectedFile != null
+                              ? AppColors.success
+                              : AppColors.primary,
                         ),
                         const SizedBox(height: AppSpacing.sm),
                         Text(
-                          _selectedFile != null ? _selectedFile!.name : 'Tap to select PDF or image',
+                          _selectedFile != null
+                              ? _selectedFile!.name
+                              : 'Tap to select PDF or image',
                           style: TextStyle(
                             fontSize: 15,
                             fontWeight: FontWeight.w600,
-                            color: _selectedFile != null ? AppColors.textPrimary : AppColors.primary,
+                            color: _selectedFile != null
+                                ? AppColors.textPrimary
+                                : AppColors.primary,
                           ),
                         ),
                         if (_selectedFile != null)
                           Text(
                             '${(_selectedFile!.size / 1024).toStringAsFixed(1)} KB',
-                            style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: AppColors.textSecondary,
+                            ),
                           ),
                       ],
                     ),
@@ -216,7 +249,9 @@ class _UploadScreenState extends State<UploadScreen> {
               ),
               const Spacer(),
               ElevatedButton(
-                onPressed: _selectedFile != null ? _startUploadAndProcess : null,
+                onPressed: _selectedFile != null
+                    ? _startUploadAndProcess
+                    : null,
                 child: const Text('Process & Extract'),
               ),
             ] else ...[

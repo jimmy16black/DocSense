@@ -43,14 +43,12 @@ class AppError implements Exception {
     'RESOURCE_NOT_FOUND': 'We could not find what you were looking for.',
     'VALIDATION_ERROR': 'Some of the information provided is invalid.',
     'RATE_LIMIT_EXCEEDED': 'You are doing that too fast. Please wait a moment.',
-    'QUOTA_EXCEEDED':
-        "You've reached this month's processing limit. Documents remain available to read.",
+    'QUOTA_EXCEEDED': "You've reached this month's processing limit. Documents remain available to read.",
     'GATEWAY_TIMEOUT': 'The analysis service timed out. Please try again.',
     'INTERNAL_SERVER_ERROR': fallback,
     'UPLOAD_NOT_VERIFIED':
         'Upload verification failed. Please re-upload the file.',
-    'STORAGE_UNAVAILABLE':
-        'Storage is temporarily unavailable. Your file was not lost — try again shortly.',
+    'STORAGE_UNAVAILABLE': 'Storage is temporarily unavailable. Your file was not lost — try again shortly.',
     'DOCUMENT_NOT_READY':
         'This document is still being processed. Check back in a moment.',
     'NETWORK_ERROR': 'No internet connection. Check your network and retry.',
@@ -72,7 +70,9 @@ class AppError implements Exception {
       } else if (data is String && data.trimLeft().startsWith('{')) {
         try {
           body = jsonDecode(data) as Map<String, dynamic>;
-        } catch (_) {/* not JSON — fall through to transport handling */}
+        } catch (_) {
+          /* not JSON — fall through to transport handling */
+        }
       }
       final errNode = body?['error'];
       if (errNode is Map<String, dynamic>) {
@@ -88,7 +88,8 @@ class AppError implements Exception {
           // Friendly copy wins; server copy only when it is safe-looking
           // (never stack traces — those arrive under INTERNAL_SERVER_ERROR
           // which maps to fallback above anyway).
-          userMessage: friendlyMessages[code] ??
+          userMessage:
+              friendlyMessages[code] ??
               ((serverMessage != null && serverMessage.isNotEmpty)
                   ? serverMessage
                   : fallback),
@@ -134,4 +135,3 @@ class AppError implements Exception {
   @override
   String toString() => 'AppError($code): $userMessage';
 }
-

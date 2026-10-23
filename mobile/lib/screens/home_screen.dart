@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+
 import '../core/theme/app_theme.dart';
 import '../models/document_model.dart';
 import '../providers/documents_provider.dart';
@@ -33,11 +34,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       ),
       body: IndexedStack(
         index: _currentIndex,
-        children: const [
-          _DocumentsTab(),
-          CompareScreen(),
-          ActionsScreen(),
-        ],
+        children: const [_DocumentsTab(), CompareScreen(), ActionsScreen()],
       ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _currentIndex,
@@ -96,7 +93,11 @@ class _DocumentsTab extends ConsumerWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(Icons.cloud_off, size: 48, color: AppColors.textTertiary),
+              const Icon(
+                Icons.cloud_off,
+                size: 48,
+                color: AppColors.textTertiary,
+              ),
               const SizedBox(height: AppSpacing.md),
               Text(
                 'Unable to load documents: $err',
@@ -122,7 +123,11 @@ class _DocumentsTab extends ConsumerWidget {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(Icons.folder_open, size: 64, color: AppColors.textTertiary),
+                  const Icon(
+                    Icons.folder_open,
+                    size: 64,
+                    color: AppColors.textTertiary,
+                  ),
                   const SizedBox(height: AppSpacing.md),
                   Text(
                     ref.watch(documentListFilterProvider).search.isNotEmpty
@@ -155,7 +160,12 @@ class _DocumentsTab extends ConsumerWidget {
               const _LibrarySearchBar(),
               Expanded(
                 child: ListView.builder(
-                  padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.sm, AppSpacing.lg, AppSpacing.lg),
+                  padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.lg,
+                    AppSpacing.sm,
+                    AppSpacing.lg,
+                    AppSpacing.lg,
+                  ),
                   // +1 trailing slot for the pagination footer when more pages exist.
                   itemCount: docs.length + (pagination.hasNext ? 1 : 0),
                   itemBuilder: (context, index) {
@@ -167,7 +177,10 @@ class _DocumentsTab extends ConsumerWidget {
                             onPressed: () {
                               // Grow the fetched window by one page (bounded,
                               // dependency-free infinite list).
-                              ref.read(documentPageSizeProvider.notifier).state += 20;
+                              ref
+                                      .read(documentPageSizeProvider.notifier)
+                                      .state +=
+                                  20;
                             },
                             child: const Text('Load more…'),
                           ),
@@ -222,7 +235,10 @@ class _DocumentCard extends StatelessWidget {
                       color: AppColors.primaryLight,
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: const Icon(Icons.picture_as_pdf, color: AppColors.primary),
+                    child: const Icon(
+                      Icons.picture_as_pdf,
+                      color: AppColors.primary,
+                    ),
                   ),
                   const SizedBox(width: AppSpacing.md),
                   Expanded(
@@ -260,7 +276,10 @@ class _DocumentCard extends StatelessWidget {
                 children: [
                   Text(
                     'Added $dateStr',
-                    style: const TextStyle(fontSize: 12, color: AppColors.textTertiary),
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: AppColors.textTertiary,
+                    ),
                   ),
                   Row(
                     children: [
@@ -273,7 +292,11 @@ class _DocumentCard extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(width: 4),
-                      const Icon(Icons.arrow_forward_ios, size: 12, color: AppColors.primary),
+                      const Icon(
+                        Icons.arrow_forward_ios,
+                        size: 12,
+                        color: AppColors.primary,
+                      ),
                     ],
                   ),
                 ],
@@ -323,11 +346,7 @@ class _StatusBadge extends StatelessWidget {
       ),
       child: Text(
         status,
-        style: TextStyle(
-          color: fg,
-          fontSize: 11,
-          fontWeight: FontWeight.bold,
-        ),
+        style: TextStyle(color: fg, fontSize: 11, fontWeight: FontWeight.bold),
       ),
     );
   }
@@ -359,15 +378,22 @@ class _LibrarySearchBarState extends ConsumerState<_LibrarySearchBar> {
 
   void _onChanged(String value) {
     // Riverpod re-fetches automatically when the filter state changes.
-    ref.read(documentPageSizeProvider.notifier).state = 20; // reset paging on new query
-    ref.read(documentListFilterProvider.notifier).state =
-        ref.read(documentListFilterProvider).copyWith(search: value.trim());
+    ref.read(documentPageSizeProvider.notifier).state =
+        20; // reset paging on new query
+    ref.read(documentListFilterProvider.notifier).state = ref
+        .read(documentListFilterProvider)
+        .copyWith(search: value.trim());
   }
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.lg, AppSpacing.lg, 0),
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.lg,
+        AppSpacing.lg,
+        AppSpacing.lg,
+        0,
+      ),
       child: TextField(
         controller: _controller,
         textInputAction: TextInputAction.search,
@@ -386,7 +412,10 @@ class _LibrarySearchBarState extends ConsumerState<_LibrarySearchBar> {
               : null,
           filled: true,
           fillColor: const Color(0xFFF9FAFB),
-          contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: AppSpacing.md),
+          contentPadding: const EdgeInsets.symmetric(
+            vertical: 0,
+            horizontal: AppSpacing.md,
+          ),
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
             borderSide: BorderSide.none,

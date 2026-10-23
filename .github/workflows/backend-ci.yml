@@ -72,7 +72,7 @@ jobs:
 
       - name: Run test suite with coverage
         env:
-          APP_ENV: testing
+          APP_ENV: test
           SECRET_KEY: test-secret-key-32-chars-minimum-length
           SUPABASE_DB_URL: postgresql+asyncpg://postgres:postgrespassword@localhost:5432/postgres
           SUPABASE_JWT_SECRET: test-jwt-secret-at-least-32-chars-long

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../core/network/app_error.dart';
 import '../core/theme/app_theme.dart';
 import '../models/qa_model.dart';
@@ -34,9 +35,8 @@ class _CompareScreenState extends ConsumerState<CompareScreen> {
       if (!mounted) return;
       // BE-4: structured error → friendly copy only.
       final err = AppError.from(e);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(err.userMessage)),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(err.userMessage)));
     }
   }
 
@@ -57,11 +57,18 @@ class _CompareScreenState extends ConsumerState<CompareScreen> {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: const [
-                    Icon(Icons.compare_arrows, size: 64, color: AppColors.textTertiary),
+                    Icon(
+                      Icons.compare_arrows,
+                      size: 64,
+                      color: AppColors.textTertiary,
+                    ),
                     SizedBox(height: AppSpacing.md),
                     Text(
                       'Need at least 2 documents',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                     SizedBox(height: AppSpacing.xs),
                     Text(
@@ -87,12 +94,16 @@ class _CompareScreenState extends ConsumerState<CompareScreen> {
                 final isSelected = _selectedDocIds.contains(doc.id);
                 return CheckboxListTile(
                   value: isSelected,
-                  title: Text(doc.title, style: const TextStyle(fontWeight: FontWeight.w600)),
+                  title: Text(
+                    doc.title,
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
                   subtitle: Text(doc.documentType ?? 'Document'),
                   onChanged: (val) {
                     setState(() {
                       if (val == true) {
-                        if (_selectedDocIds.length < 5) _selectedDocIds.add(doc.id);
+                        if (_selectedDocIds.length < 5)
+                          _selectedDocIds.add(doc.id);
                       } else {
                         _selectedDocIds.remove(doc.id);
                       }
@@ -117,10 +128,16 @@ class _CompareScreenState extends ConsumerState<CompareScreen> {
                       children: [
                         const Text(
                           'Comparison Summary',
-                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                         const SizedBox(height: AppSpacing.sm),
-                        Text(_comparisonResult!.summary, style: const TextStyle(fontSize: 14)),
+                        Text(
+                          _comparisonResult!.summary,
+                          style: const TextStyle(fontSize: 14),
+                        ),
                         const SizedBox(height: AppSpacing.md),
                         ..._comparisonResult!.comparisonMatrix.map(
                           (item) => Padding(
@@ -130,11 +147,17 @@ class _CompareScreenState extends ConsumerState<CompareScreen> {
                               children: [
                                 Text(
                                   item.attribute,
-                                  style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary),
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: AppColors.primary,
+                                  ),
                                 ),
                                 const SizedBox(height: 2),
                                 ...item.values.entries.map(
-                                  (e) => Text('• ${e.value}', style: const TextStyle(fontSize: 13)),
+                                  (e) => Text(
+                                    '• ${e.value}',
+                                    style: const TextStyle(fontSize: 13),
+                                  ),
                                 ),
                               ],
                             ),

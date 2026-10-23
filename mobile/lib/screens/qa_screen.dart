@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../core/network/app_error.dart';
 import '../core/theme/app_theme.dart';
 import '../models/document_model.dart';
@@ -26,12 +27,14 @@ class _QAScreenState extends State<QAScreen> {
   void initState() {
     super.initState();
     // Pre-populate with suggested questions from document extraction if available
-    final suggestions = widget.document.latestExtraction?.suggestedQuestions ?? [];
+    final suggestions =
+        widget.document.latestExtraction?.suggestedQuestions ?? [];
     if (suggestions.isNotEmpty) {
       _messages.add(
         _ChatMessageItem(
           isUser: false,
-          text: 'Hello! I have analyzed "${widget.document.title}". You can ask me anything about clauses, coverage, terms, or exclusions.',
+          text:
+              'Hello! I have analyzed "${widget.document.title}". You can ask me anything about clauses, coverage, terms, or exclusions.',
           confidence: 'HIGH',
         ),
       );
@@ -49,7 +52,10 @@ class _QAScreenState extends State<QAScreen> {
     });
 
     try {
-      final response = await _apiService.askQuestion(widget.document.id, trimmed);
+      final response = await _apiService.askQuestion(
+        widget.document.id,
+        trimmed,
+      );
       setState(() {
         _messages.add(
           _ChatMessageItem(
@@ -82,12 +88,11 @@ class _QAScreenState extends State<QAScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final suggestedQuestions = widget.document.latestExtraction?.suggestedQuestions ?? [];
+    final suggestedQuestions =
+        widget.document.latestExtraction?.suggestedQuestions ?? [];
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text('Q&A: ${widget.document.title}'),
-      ),
+      appBar: AppBar(title: Text('Q&A: ${widget.document.title}')),
       body: Column(
         children: [
           // Suggested Questions Chips
@@ -118,7 +123,10 @@ class _QAScreenState extends State<QAScreen> {
               itemCount: _messages.length,
               itemBuilder: (context, index) {
                 final msg = _messages[index];
-                return _MessageBubble(message: msg, onSuggestionTap: _sendQuestion);
+                return _MessageBubble(
+                  message: msg,
+                  onSuggestionTap: _sendQuestion,
+                );
               },
             ),
           ),
@@ -129,9 +137,19 @@ class _QAScreenState extends State<QAScreen> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+                  SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
                   SizedBox(width: 8),
-                  Text('Searching document & verifying quotes...', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                  Text(
+                    'Searching document & verifying quotes...',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -151,7 +169,10 @@ class _QAScreenState extends State<QAScreen> {
                       controller: _controller,
                       decoration: const InputDecoration(
                         hintText: 'Ask a grounded question...',
-                        contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                        contentPadding: EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 10,
+                        ),
                       ),
                       onSubmitted: _sendQuestion,
                     ),
@@ -200,7 +221,10 @@ class _MessageBubble extends StatelessWidget {
         alignment: Alignment.centerRight,
         child: Container(
           margin: const EdgeInsets.only(bottom: AppSpacing.sm),
-          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: 10),
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.md,
+            vertical: 10,
+          ),
           decoration: BoxDecoration(
             color: AppColors.primary,
             borderRadius: BorderRadius.circular(12),
@@ -232,26 +256,36 @@ class _MessageBubble extends StatelessWidget {
             ],
             Text(
               message.text,
-              style: const TextStyle(fontSize: 14, color: AppColors.textPrimary),
+              style: const TextStyle(
+                fontSize: 14,
+                color: AppColors.textPrimary,
+              ),
             ),
             if (message.citations != null && message.citations!.isNotEmpty) ...[
               const SizedBox(height: AppSpacing.sm),
               const Text(
                 'Source Citations:',
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.textSecondary),
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.textSecondary,
+                ),
               ),
               ...message.citations!.map((c) => CitationCard(citation: c)),
             ],
-            if (message.suggestedFollowUps != null && message.suggestedFollowUps!.isNotEmpty) ...[
+            if (message.suggestedFollowUps != null &&
+                message.suggestedFollowUps!.isNotEmpty) ...[
               const SizedBox(height: AppSpacing.md),
               Wrap(
                 spacing: 6,
-                children: message.suggestedFollowUps!.map(
-                  (f) => ActionChip(
-                    label: Text(f, style: const TextStyle(fontSize: 11)),
-                    onPressed: () => onSuggestionTap(f),
-                  ),
-                ).toList(),
+                children: message.suggestedFollowUps!
+                    .map(
+                      (f) => ActionChip(
+                        label: Text(f, style: const TextStyle(fontSize: 11)),
+                        onPressed: () => onSuggestionTap(f),
+                      ),
+                    )
+                    .toList(),
               ),
             ],
           ],

@@ -8,17 +8,17 @@ class ApiClient {
   final FlutterSecureStorage storage = const FlutterSecureStorage();
 
   ApiClient({String? customBaseUrl})
-      : dio = Dio(
-          BaseOptions(
-            baseUrl: customBaseUrl ?? baseUrl,
-            connectTimeout: const Duration(seconds: 15),
-            receiveTimeout: const Duration(seconds: 30),
-            headers: {
-              'Content-Type': 'application/json',
-              'Accept': 'application/json',
-            },
-          ),
-        ) {
+    : dio = Dio(
+        BaseOptions(
+          baseUrl: customBaseUrl ?? baseUrl,
+          connectTimeout: const Duration(seconds: 15),
+          receiveTimeout: const Duration(seconds: 30),
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+        ),
+      ) {
     dio.interceptors.add(
       InterceptorsWrapper(
         onRequest: (options, handler) async {
@@ -26,7 +26,8 @@ class ApiClient {
           options.headers['X-Correlation-ID'] = const Uuid().v4();
 
           // Attach JWT token if stored
-          final token = await storage.read(key: 'jwt_token') ?? 'test-token-demo-user';
+          final token =
+              await storage.read(key: 'jwt_token') ?? 'test-token-demo-user';
           options.headers['Authorization'] = 'Bearer $token';
 
           return handler.next(options);
