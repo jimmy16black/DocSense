@@ -39,6 +39,7 @@ from app.services.extractor import pdf_extractor_service
 from app.services.idempotency import idempotency_guard, save_idempotent_response
 from app.services.pipeline import STAGES, pipeline_worker, record_progress
 from app.services.rag import rag_service
+from app.services.rate_limiter import check_user_quota, rate_limit
 from app.services.storage import storage_service
 
 router = APIRouter(prefix="/documents", tags=["Documents"])
@@ -77,7 +78,11 @@ def _safe_file_name(raw_name: str) -> str:
     return name[:255]
 
 
-@router.post("/upload-init", response_model=APIResponse[DocumentUploadInitResponse])
+@router.post(
+    "/upload-init",
+    response_model=APIResponse[DocumentUploadInitResponse],
+    dependencies=[Depends(rate_limit(max_requests=20, window_seconds=60, key_prefix="upload"))],
+)
 async def init_upload(
     req: DocumentUploadInitRequest,
     request: Request,
@@ -90,7 +95,10 @@ async def init_upload(
     it cannot escape the per-user storage prefix (ISSUE-002). The document is
     created in PENDING_UPLOAD state and may only advance after the server has
     verified the bytes that actually landed via /upload-complete.
+    Enforces user quotas and rate limits (ISSUE-008).
     """
+    await check_user_quota(current_user.id, db)
+
     if req.file_size_bytes > settings.MAX_UPLOAD_SIZE_BYTES:
         raise ValidationError(
             f"File size exceeds maximum allowed limit of {settings.MAX_UPLOAD_SIZE_BYTES // (1024 * 1024)} MB"
@@ -287,7 +295,10 @@ async def complete_upload(
     "/{document_id}/process",
     response_model=APIResponse[DocumentProcessResponse],
     status_code=202,
-    dependencies=[Depends(idempotency_guard)],
+    dependencies=[
+        Depends(idempotency_guard),
+        Depends(rate_limit(max_requests=10, window_seconds=3600, key_prefix="process")),
+    ],
 )
 async def process_document(
     document_id: uuid.UUID,
@@ -630,7 +641,10 @@ async def list_documents(
 @router.post(
     "/{document_id}/ask",
     response_model=APIResponse[AskResponse],
-    dependencies=[Depends(idempotency_guard)],
+    dependencies=[
+        Depends(idempotency_guard),
+        Depends(rate_limit(max_requests=30, window_seconds=60, key_prefix="ask")),
+    ],
 )
 async def ask_question(
     document_id: uuid.UUID,

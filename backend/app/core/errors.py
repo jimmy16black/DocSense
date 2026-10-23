@@ -84,13 +84,29 @@ class ValidationError(DocSenseException):
 
 
 class RateLimitExceededError(DocSenseException):
-    def __init__(self, message: str = "Rate limit exceeded. Please try again later."):
+    def __init__(
+        self, message: str = "Rate limit exceeded. Please try again later.", retry_after: int = 60
+    ):
         super().__init__(
             message=message,
             classification=ErrorClassification.RETRYABLE_FAILURE,
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             code="RATE_LIMIT_EXCEEDED",
             is_retryable=True,
+        )
+        self.retry_after = retry_after
+
+
+class QuotaExceededError(DocSenseException):
+    def __init__(
+        self, message: str = "Monthly processing quota exceeded. Please upgrade your plan."
+    ):
+        super().__init__(
+            message=message,
+            classification=ErrorClassification.USER_ACTION_REQUIRED,
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            code="QUOTA_EXCEEDED",
+            is_retryable=False,
         )
 
 
@@ -115,8 +131,13 @@ async def docsense_exception_handler(request: Request, exc: DocSenseException) -
         path=request.url.path,
         message=exc.message,
     )
+    headers: dict[str, str] = {}
+    if isinstance(exc, RateLimitExceededError):
+        headers["Retry-After"] = str(exc.retry_after)
+
     return JSONResponse(
         status_code=exc.status_code,
+        headers=headers,
         content={
             "success": False,
             "error": {
