@@ -1,15 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:intl/intl.dart';
 
 import '../core/theme/app_theme.dart';
 import '../models/document_model.dart';
 import '../providers/documents_provider.dart';
 import '../widgets/offline_banner.dart';
-import 'document_detail_screen.dart';
-import 'upload_screen.dart';
-import 'compare_screen.dart';
 import 'actions_screen.dart';
+import 'compare_screen.dart';
+import 'document_detail_screen.dart';
+import 'login_screen.dart';
+import 'upload_screen.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -30,6 +32,23 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: () => ref.refresh(documentListProvider),
+          ),
+          IconButton(
+            icon: const Icon(Icons.logout),
+            tooltip: 'Sign Out',
+            onPressed: () async {
+              const storage = FlutterSecureStorage(
+                aOptions: AndroidOptions(encryptedSharedPreferences: true),
+                iOptions: IOSOptions(
+                  accessibility: KeychainAccessibility.first_unlock,
+                ),
+              );
+              await storage.delete(key: 'jwt_token');
+              if (!context.mounted) return;
+              Navigator.of(context).pushReplacement(
+                MaterialPageRoute(builder: (_) => const LoginScreen()),
+              );
+            },
           ),
         ],
       ),

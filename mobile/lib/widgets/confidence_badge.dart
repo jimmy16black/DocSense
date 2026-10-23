@@ -28,17 +28,22 @@ class ConfidenceBadge extends StatelessWidget {
         label = 'Moderate Confidence';
         break;
       case 'LOW':
-        bg = const Color(0xFFFFEDD5);
-        fg = Colors.orange;
+        bg = const Color(0xFFFEF3C7);
+        fg = AppColors.riskMedium;
         icon = Icons.warning_amber_rounded;
         label = 'Cautious Evidence';
         break;
       case 'UNSUPPORTED':
-      default:
         bg = const Color(0xFFFEE2E2);
         fg = AppColors.riskHigh;
         icon = Icons.cancel_outlined;
         label = 'Unsupported by Doc';
+        break;
+      default:
+        bg = const Color(0xFFF3F4F6);
+        fg = AppColors.textSecondary;
+        icon = Icons.help_outline;
+        label = 'Unclassified';
         break;
     }
 

@@ -28,10 +28,11 @@ class ApiClient {
           // Add correlation ID for tracing
           options.headers['X-Correlation-ID'] = const Uuid().v4();
 
-          // Attach JWT token if stored
-          final token =
-              await storage.read(key: 'jwt_token') ?? 'test-token-demo-user';
-          options.headers['Authorization'] = 'Bearer $token';
+          // Attach JWT token if stored (ISSUE-011)
+          final token = await storage.read(key: 'jwt_token');
+          if (token != null && token.isNotEmpty) {
+            options.headers['Authorization'] = 'Bearer $token';
+          }
 
           return handler.next(options);
         },
