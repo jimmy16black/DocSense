@@ -138,7 +138,10 @@ class ApiService {
 
   Future<List<ActionModel>> listActions() async {
     final response = await client.dio.get('/api/v1/actions');
-    final list = response.data['data'] as List<dynamic>;
+    final rawData = response.data['data'];
+    final list = rawData is Map<String, dynamic>
+        ? (rawData['items'] as List<dynamic>? ?? const [])
+        : (rawData as List<dynamic>? ?? const []);
     return list
         .map((e) => ActionModel.fromJson(e as Map<String, dynamic>))
         .toList();

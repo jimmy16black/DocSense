@@ -40,7 +40,8 @@ async def test_action_and_reminder_lifecycle(client: AsyncClient):
     # 3. List actions
     list_res = await client.get("/api/v1/actions")
     assert list_res.status_code == 200
-    actions = list_res.json()["data"]
+    res_data = list_res.json()["data"]
+    actions = res_data["items"] if isinstance(res_data, dict) and "items" in res_data else res_data
     assert len(actions) >= 1
     assert any(a["id"] == action_id for a in actions)
 
@@ -51,6 +52,22 @@ async def test_action_and_reminder_lifecycle(client: AsyncClient):
     )
     assert update_res.status_code == 200
     assert update_res.json()["data"]["status"] == "CONFIRMED"
+
+    # 5. Test pagination, filtering, and search
+    paged_res = await client.get("/api/v1/actions?page=1&pageSize=1&status=CONFIRMED")
+    assert paged_res.status_code == 200
+    pdata = paged_res.json()["data"]
+    assert "items" in pdata
+    assert "pagination" in pdata
+    assert pdata["pagination"]["page"] == 1
+    assert pdata["pagination"]["pageSize"] == 1
+    assert len(pdata["items"]) == 1
+    assert pdata["items"][0]["status"] == "CONFIRMED"
+
+    # Search filter
+    search_res = await client.get("/api/v1/actions?search=GST+Invoice")
+    assert search_res.status_code == 200
+    assert len(search_res.json()["data"]["items"]) >= 1
 
 
 @pytest.mark.asyncio

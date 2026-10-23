@@ -1,7 +1,7 @@
 import uuid
 
-from fastapi import APIRouter, Depends, Request
-from sqlalchemy import select
+from fastapi import APIRouter, Depends, Query, Request
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import PermissionDeniedError, ResourceNotFoundError
@@ -9,7 +9,7 @@ from app.core.security import CurrentUser, get_current_user
 from app.db.session import commit_now, get_db_session
 from app.models.document import Action, Document
 from app.schemas.action import ActionResponse, ActionUpdateRequest, ReminderCreateRequest
-from app.schemas.common import APIResponse
+from app.schemas.common import APIResponse, PagedData, PageMeta
 from app.services import audit
 from app.services.idempotency import idempotency_guard, save_idempotent_response
 
@@ -70,24 +70,49 @@ async def create_reminder(
     return resp
 
 
-@router.get("", response_model=APIResponse[list[ActionResponse]])
+@router.get("", response_model=APIResponse[PagedData[ActionResponse]])
 async def list_actions(
+    page: int = Query(1, ge=1, description="Page number"),
+    page_size: int = Query(20, ge=1, le=100, alias="pageSize", description="Items per page"),
+    status: str | None = Query(
+        None, description="Filter by action status (PENDING, CONFIRMED, etc.)"
+    ),
+    search: str | None = Query(None, description="Search term in title or description"),
     current_user: CurrentUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ):
     """
-    List all pending and active actions for current user.
+    List actions for current user with pagination and search (ISSUE-013).
     """
+    base = select(Action).where(Action.user_id == current_user.id)
+    if status:
+        base = base.where(Action.status == status.upper())
+    if search and search.strip():
+        term = f"%{search.strip()}%"
+        base = base.where(Action.title.ilike(term) | Action.description.ilike(term))
+
+    count_q = select(func.count()).select_from(base.subquery())
+    total = (await db.execute(count_q)).scalar() or 0
+
+    offset = (page - 1) * page_size
     query = (
-        select(Action).where(Action.user_id == current_user.id).order_by(Action.created_at.desc())
+        base.order_by(Action.created_at.desc(), Action.id.desc()).offset(offset).limit(page_size)
     )
     res = await db.execute(query)
     actions = list(res.scalars().all())
 
-    return APIResponse(
-        success=True,
-        data=[ActionResponse.model_validate(a) for a in actions],
+    total_pages = (total + page_size - 1) // page_size if total > 0 else 0
+    paged: PagedData[ActionResponse] = PagedData(
+        items=[ActionResponse.model_validate(a) for a in actions],
+        pagination=PageMeta(
+            page=page,
+            pageSize=page_size,
+            total=total,
+            totalPages=total_pages,
+            hasNext=page < total_pages,
+        ),
     )
+    return APIResponse(success=True, data=paged)
 
 
 @router.patch("/{action_id}", response_model=APIResponse[ActionResponse])
