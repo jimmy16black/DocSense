@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -19,6 +19,7 @@ from app.models.document import (
     Extraction,
 )
 from app.schemas.common import APIResponse
+from app.services import audit
 from app.services.storage import storage_service
 
 router = APIRouter(prefix="/users", tags=["Users"])
@@ -27,6 +28,7 @@ logger = get_logger("routes.users")
 
 @router.delete("/me", response_model=APIResponse[dict])
 async def delete_user_account(
+    request: Request,
     current_user: CurrentUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ):
@@ -79,7 +81,20 @@ async def delete_user_account(
     await db.execute(delete(ChatMessage).where(ChatMessage.user_id == user_id))
     await db.execute(delete(ChatSession).where(ChatSession.user_id == user_id))
     await db.execute(delete(Document).where(Document.user_id == user_id))
+    # BE-5: purge prior audit history, then keep exactly one tombstone row
+    # proving erasure occurred (compliance evidence, contains no PII).
     await db.execute(delete(AuditEvent).where(AuditEvent.user_id == user_id))
+    await db.flush()
+    db.add(
+        AuditEvent(
+            user_id=user_id,
+            event_type="user.erasure_completed",
+            details={
+                "storage_objects_purged": len(storage_paths),
+                "ip": audit.client_ip(request) or "",
+            },
+        )
+    )
 
     await commit_now(db)
 

@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Optional
 
 from pgvector.sqlalchemy import Vector
@@ -16,6 +16,11 @@ from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
+
+
+def _utcnow() -> datetime:
+    """Timezone-aware UTC now (BE-1: replaces deprecated naive datetime.utcnow())."""
+    return datetime.now(UTC)
 
 
 class DocumentStatus(str):
@@ -58,9 +63,9 @@ class Document(Base):
     page_count: Mapped[int] = mapped_column(Integer, default=0)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     metadata_json: Mapped[dict] = mapped_column(JSONB, default=dict)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow
+        DateTime(timezone=True), default=_utcnow, onupdate=_utcnow
     )
 
     # Relationships
@@ -94,7 +99,7 @@ class DocumentPage(Base):
     page_number: Mapped[int] = mapped_column(Integer, nullable=False)
     raw_text: Mapped[str] = mapped_column(Text, default="")
     image_path: Mapped[str | None] = mapped_column(String(512), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 
     document: Mapped["Document"] = relationship("Document", back_populates="pages")
 
@@ -114,7 +119,7 @@ class DocumentChunk(Base):
     content: Mapped[str] = mapped_column(Text, nullable=False)
     embedding = mapped_column(Vector(1536), nullable=True)
     metadata_json: Mapped[dict] = mapped_column(JSONB, default=dict)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 
     document: Mapped["Document"] = relationship("Document", back_populates="chunks")
 
@@ -138,7 +143,7 @@ class Extraction(Base):
     recommended_actions: Mapped[list] = mapped_column(JSONB, default=list)
     payload: Mapped[dict] = mapped_column(JSONB, default=dict)
     raw_llm_response: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 
     document: Mapped["Document"] = relationship("Document", back_populates="extractions")
     citations: Mapped[list["Citation"]] = relationship(
@@ -161,7 +166,7 @@ class Citation(Base):
     section_heading: Mapped[str | None] = mapped_column(String(255), nullable=True)
     exact_quote: Mapped[str] = mapped_column(Text, nullable=False)
     bounding_box: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 
     extraction: Mapped[Optional["Extraction"]] = relationship(
         "Extraction", back_populates="citations"
@@ -182,9 +187,9 @@ class Action(Base):
     due_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     status: Mapped[str] = mapped_column(String(50), default="PENDING")
     payload: Mapped[dict] = mapped_column(JSONB, default=dict)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow
+        DateTime(timezone=True), default=_utcnow, onupdate=_utcnow
     )
 
     document: Mapped["Document"] = relationship("Document", back_populates="actions")
@@ -199,9 +204,9 @@ class ChatSession(Base):
     )
     user_id: Mapped[str] = mapped_column(String(128), index=True, nullable=False)
     title: Mapped[str] = mapped_column(String(255), default="Document Q&A")
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow
+        DateTime(timezone=True), default=_utcnow, onupdate=_utcnow
     )
 
     messages: Mapped[list["ChatMessage"]] = relationship(
@@ -224,7 +229,7 @@ class ChatMessage(Base):
     confidence: Mapped[str] = mapped_column(
         String(30), default="HIGH"
     )  # HIGH, MEDIUM, LOW, UNSUPPORTED
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 
     session: Mapped["ChatSession"] = relationship("ChatSession", back_populates="messages")
 
@@ -239,4 +244,4 @@ class AuditEvent(Base):
     action_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
     details: Mapped[dict] = mapped_column(JSONB, default=dict)
     ip_address: Mapped[str | None] = mapped_column(String(45), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)

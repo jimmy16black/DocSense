@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../core/network/app_error.dart';
 import '../core/theme/app_theme.dart';
 import '../models/qa_model.dart';
 import '../providers/documents_provider.dart';
@@ -31,8 +32,10 @@ class _CompareScreenState extends ConsumerState<CompareScreen> {
     } catch (e) {
       setState(() => _isLoading = false);
       if (!mounted) return;
+      // BE-4: structured error → friendly copy only.
+      final err = AppError.from(e);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Comparison failed: $e')),
+        SnackBar(content: Text(err.userMessage)),
       );
     }
   }

@@ -10,6 +10,7 @@ from app.db.session import commit_now, get_db_session
 from app.models.document import Action, Document
 from app.schemas.action import ActionResponse, ActionUpdateRequest, ReminderCreateRequest
 from app.schemas.common import APIResponse
+from app.services import audit
 from app.services.idempotency import idempotency_guard, save_idempotent_response
 
 router = APIRouter(prefix="/actions", tags=["Actions"])
@@ -50,6 +51,14 @@ async def create_reminder(
         payload=req.payload,
     )
     db.add(action)
+    await audit.record(
+        db,
+        user_id=current_user.id,
+        event_type="action.created",
+        document_id=req.document_id,
+        details={"action_type": req.action_type},
+        ip_address=audit.client_ip(request),
+    )
     await commit_now(db)  # ISSUE-001: durable write before success response
 
     resp: APIResponse[ActionResponse] = APIResponse(
@@ -85,6 +94,7 @@ async def list_actions(
 async def update_action(
     action_id: uuid.UUID,
     req: ActionUpdateRequest,
+    request: Request,
     current_user: CurrentUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ):
@@ -106,6 +116,15 @@ async def update_action(
     if req.notes:
         action.payload = {**action.payload, "notes": req.notes}
 
+    await audit.record(
+        db,
+        user_id=current_user.id,
+        event_type="action.updated",
+        document_id=action.document_id,
+        action_id=action_id,
+        details={"new_status": req.status},
+        ip_address=audit.client_ip(request),
+    )
     await commit_now(db)  # ISSUE-001: durable write before success response
 
     return APIResponse(

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import '../core/network/app_error.dart';
 import '../core/theme/app_theme.dart';
 import '../models/action_model.dart';
 import '../services/api_service.dart';
@@ -64,8 +65,10 @@ class _ActionsScreenState extends State<ActionsScreen> {
         _loadActions();
       } catch (e) {
         if (!mounted) return;
+        // BE-4: show only safe, friendly copy — never raw exception strings.
+        final err = AppError.from(e);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to update action: $e')),
+          SnackBar(content: Text(err.userMessage)),
         );
       }
     }

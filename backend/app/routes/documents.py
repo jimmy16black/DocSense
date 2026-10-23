@@ -34,6 +34,7 @@ from app.schemas.document import (
 )
 from app.schemas.extraction import ExtractionEnvelope
 from app.schemas.qa import AskRequest, AskResponse, CompareRequest, CompareResponse, ComparisonItem
+from app.services import audit
 from app.services.extractor import pdf_extractor_service
 from app.services.idempotency import idempotency_guard, save_idempotent_response
 from app.services.pipeline import STAGES, pipeline_worker, record_progress
@@ -79,6 +80,7 @@ def _safe_file_name(raw_name: str) -> str:
 @router.post("/upload-init", response_model=APIResponse[DocumentUploadInitResponse])
 async def init_upload(
     req: DocumentUploadInitRequest,
+    request: Request,
     current_user: CurrentUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ):
@@ -121,6 +123,14 @@ async def init_upload(
         document_type=req.document_type,
     )
     db.add(document)
+    await audit.record(
+        db,
+        user_id=current_user.id,
+        event_type="document.upload_init",
+        document_id=doc_id,
+        details={"file_name": safe_name, "size_bytes": req.file_size_bytes},
+        ip_address=audit.client_ip(request),
+    )
     # Commit immediately so the document row is durable BEFORE handing the
     # client a presigned URL (ISSUE-001). Otherwise an upload could reference
     # a document row that never persisted.
@@ -142,6 +152,7 @@ async def init_upload(
 async def complete_upload(
     document_id: uuid.UUID,
     req: UploadCompleteRequest,
+    request: Request,
     current_user: CurrentUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ):
@@ -250,6 +261,14 @@ async def complete_upload(
         "verified_size_bytes": stat.size_bytes,
         "etag": stat.etag,
     }
+    await audit.record(
+        db,
+        user_id=current_user.id,
+        event_type="document.upload_verified",
+        document_id=document_id,
+        details={"checksum_sha256": computed, "size_bytes": stat.size_bytes},
+        ip_address=audit.client_ip(request),
+    )
     await commit_now(db)
 
     return APIResponse(
@@ -349,6 +368,14 @@ async def process_document(
     document.status = DocumentStatus.VALIDATING
     document.error_message = None
     record_progress(document, "QUEUED", "Queued for processing")
+    await audit.record(
+        db,
+        user_id=current_user.id,
+        event_type="document.process_enqueued",
+        document_id=document_id,
+        details={"force_reprocess": req.force_reprocess},
+        ip_address=audit.client_ip(request),
+    )
     await commit_now(db)
 
     job_id = f"job-{document.id}-{uuid.uuid4().hex[:8]}"
@@ -695,6 +722,7 @@ async def compare_documents(
 @router.delete("/{document_id}", response_model=APIResponse[dict])
 async def delete_document(
     document_id: uuid.UUID,
+    request: Request,
     current_user: CurrentUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ):
@@ -730,6 +758,13 @@ async def delete_document(
         ) from exc
 
     await db.delete(document)  # cascades to pages/chunks/extractions/actions
+    await audit.record(
+        db,
+        user_id=current_user.id,
+        event_type="document.deleted",
+        document_id=document_id,
+        ip_address=audit.client_ip(request),
+    )
     await commit_now(db)
 
     return APIResponse(

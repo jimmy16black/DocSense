@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../core/network/app_error.dart';
 import '../core/theme/app_theme.dart';
 import '../models/document_model.dart';
 import '../models/qa_model.dart';
@@ -62,11 +63,15 @@ class _QAScreenState extends State<QAScreen> {
         _isLoading = false;
       });
     } catch (e) {
+      // BE-4: structured error → friendly copy only (no raw exception text).
+      final err = AppError.from(e);
       setState(() {
         _messages.add(
           _ChatMessageItem(
             isUser: false,
-            text: 'Error getting answer: $e',
+            text: err.isRetryable
+                ? '${err.userMessage} (Tap send to retry)'
+                : err.userMessage,
             confidence: 'UNSUPPORTED',
           ),
         );

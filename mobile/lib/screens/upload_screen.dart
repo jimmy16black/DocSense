@@ -6,6 +6,7 @@ import 'package:convert/convert.dart';
 import 'package:crypto/crypto.dart';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
+import '../core/network/app_error.dart';
 import '../core/theme/app_theme.dart';
 import '../services/api_service.dart';
 import 'document_detail_screen.dart';
@@ -129,13 +130,10 @@ class _UploadScreenState extends State<UploadScreen> {
         _isUploading = false;
       });
       if (!mounted) return;
-      final detail = e is DioException
-          ? (e.response?.data is Map
-              ? (e.response!.data['error']?['message'] ?? 'Upload failed. Please try again.')
-              : 'Upload failed. Please try again.')
-          : 'Something went wrong. Please try again.';
+      // BE-4: structured error → friendly copy only.
+      final err = AppError.from(e);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(detail.toString()), backgroundColor: AppColors.riskHigh),
+        SnackBar(content: Text(err.userMessage), backgroundColor: AppColors.riskHigh),
       );
     }
   }
