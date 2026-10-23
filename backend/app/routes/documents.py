@@ -2,7 +2,7 @@ import hashlib
 import re
 import uuid
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -34,6 +34,7 @@ from app.schemas.document import (
 from app.schemas.extraction import ExtractionEnvelope
 from app.schemas.qa import AskRequest, AskResponse, CompareRequest, CompareResponse, ComparisonItem
 from app.services.extractor import pdf_extractor_service
+from app.services.idempotency import idempotency_guard, save_idempotent_response
 from app.services.pipeline import STAGES, pipeline_worker, record_progress
 from app.services.rag import rag_service
 from app.services.storage import storage_service
@@ -266,10 +267,12 @@ async def complete_upload(
     "/{document_id}/process",
     response_model=APIResponse[DocumentProcessResponse],
     status_code=202,
+    dependencies=[Depends(idempotency_guard)],
 )
 async def process_document(
     document_id: uuid.UUID,
     req: DocumentProcessRequest,
+    request: Request,
     current_user: CurrentUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ):
@@ -306,7 +309,7 @@ async def process_document(
 
     # Idempotency: already completed -> no new job.
     if document.status == DocumentStatus.COMPLETED and not req.force_reprocess:
-        return APIResponse(
+        resp = APIResponse(
             success=True,
             data=DocumentProcessResponse(
                 job_id=f"job-{document.id}-cached",
@@ -315,6 +318,8 @@ async def process_document(
                 message="Document is already processed.",
             ),
         )
+        await save_idempotent_response(db, request, current_user.id, resp)
+        return resp
 
     # Already queued/running -> don't double-enqueue (unless forced reprocess,
     # which the pipeline handles idempotently by rebuilding derived rows).
@@ -325,7 +330,7 @@ async def process_document(
         DocumentStatus.RETRYING,
     )
     if in_flight and not req.force_reprocess:
-        return APIResponse(
+        resp = APIResponse(
             success=True,
             data=DocumentProcessResponse(
                 job_id=f"job-{document.id}-inflight",
@@ -334,6 +339,8 @@ async def process_document(
                 message="Processing already in progress.",
             ),
         )
+        await save_idempotent_response(db, request, current_user.id, resp)
+        return resp
 
     # Mark QUEUED-equivalent (VALIDATING) durably BEFORE enqueue so a crash
     # between response and job start still leaves a recoverable row
@@ -346,7 +353,7 @@ async def process_document(
     job_id = f"job-{document.id}-{uuid.uuid4().hex[:8]}"
     pipeline_worker.enqueue(document.id)
 
-    return APIResponse(
+    resp = APIResponse(
         success=True,
         data=DocumentProcessResponse(
             job_id=job_id,
@@ -355,6 +362,8 @@ async def process_document(
             message=f"Processing started. Poll /documents/{document.id}/status for progress.",
         ),
     )
+    await save_idempotent_response(db, request, current_user.id, resp, status_code=202)
+    return resp
 
 
 @router.get("/{document_id}/status", response_model=APIResponse[DocumentStatusResponse])
@@ -577,15 +586,23 @@ async def list_documents(
     )
 
 
-@router.post("/{document_id}/ask", response_model=APIResponse[AskResponse])
+@router.post(
+    "/{document_id}/ask",
+    response_model=APIResponse[AskResponse],
+    dependencies=[Depends(idempotency_guard)],
+)
 async def ask_question(
     document_id: uuid.UUID,
     req: AskRequest,
+    request: Request,
     current_user: CurrentUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ):
     """
     Grounded Q&A over document with citations.
+
+    ISSUE-016: pass ``Idempotency-Key`` to dedupe retried questions — a replay
+    returns the original answer without paying for another AI-gateway call.
     """
     query = select(Document).where(Document.id == document_id)
     result = await db.execute(query)
@@ -604,12 +621,19 @@ async def ask_question(
         question=req.question,
     )
 
-    return APIResponse(success=True, data=ans)
+    resp = APIResponse(success=True, data=ans)
+    await save_idempotent_response(db, request, current_user.id, resp)
+    return resp
 
 
-@router.post("/compare", response_model=APIResponse[CompareResponse])
+@router.post(
+    "/compare",
+    response_model=APIResponse[CompareResponse],
+    dependencies=[Depends(idempotency_guard)],
+)
 async def compare_documents(
     req: CompareRequest,
+    request: Request,
     current_user: CurrentUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ):
@@ -642,7 +666,7 @@ async def compare_documents(
         ),
     ]
 
-    return APIResponse(
+    resp = APIResponse(
         success=True,
         data=CompareResponse(
             summary=f"Compared {len(documents)} documents successfully.",
@@ -650,6 +674,8 @@ async def compare_documents(
             recommendations=["Review terms and conditions for deductible differences."],
         ),
     )
+    await save_idempotent_response(db, request, current_user.id, resp)
+    return resp
 
 
 @router.delete("/{document_id}", response_model=APIResponse[dict])

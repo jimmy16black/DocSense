@@ -1,6 +1,6 @@
 import uuid
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -10,13 +10,19 @@ from app.db.session import commit_now, get_db_session
 from app.models.document import Action, Document
 from app.schemas.action import ActionResponse, ActionUpdateRequest, ReminderCreateRequest
 from app.schemas.common import APIResponse
+from app.services.idempotency import idempotency_guard, save_idempotent_response
 
 router = APIRouter(prefix="/actions", tags=["Actions"])
 
 
-@router.post("/reminders", response_model=APIResponse[ActionResponse])
+@router.post(
+    "/reminders",
+    response_model=APIResponse[ActionResponse],
+    dependencies=[Depends(idempotency_guard)],
+)
 async def create_reminder(
     req: ReminderCreateRequest,
+    request: Request,
     current_user: CurrentUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ):
@@ -46,11 +52,13 @@ async def create_reminder(
     db.add(action)
     await commit_now(db)  # ISSUE-001: durable write before success response
 
-    return APIResponse(
+    resp = APIResponse(
         success=True,
         data=ActionResponse.model_validate(action),
         message="Reminder created successfully.",
     )
+    await save_idempotent_response(db, request, current_user.id, resp)
+    return resp
 
 
 @router.get("", response_model=APIResponse[list[ActionResponse]])
