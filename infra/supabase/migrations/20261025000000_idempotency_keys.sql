@@ -20,6 +20,8 @@ CREATE TABLE IF NOT EXISTS idempotency_keys (
 CREATE INDEX IF NOT EXISTS idx_idempotency_expires
     ON idempotency_keys (expires_at);
 
+ALTER TABLE idempotency_keys ENABLE ROW LEVEL SECURITY;
+
 COMMENT ON TABLE idempotency_keys IS
     'Recorded responses for Idempotency-Key replays (ISSUE-016). A row with '
     'NULL response_body is an in-flight reservation; replays of it get 409.';

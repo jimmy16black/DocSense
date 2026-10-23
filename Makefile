@@ -19,6 +19,9 @@ install:
 dev:
 	cd backend && uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
+db-migrate:
+	cd backend && uv run python scripts/migrate.py
+
 test:
 	cd backend && uv run pytest -v
 
