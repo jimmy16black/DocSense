@@ -25,7 +25,7 @@ class _UploadScreenState extends State<UploadScreen> {
   String _currentStep = '';
 
   Future<void> _pickFile() async {
-    final result = await FilePicker.platform.pickFiles(
+    final result = await FilePicker.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['pdf', 'png', 'jpg', 'jpeg'],
     );

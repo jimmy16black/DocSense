@@ -19,5 +19,6 @@
     "editor.suggest.snippetsPreventQuickSuggestions": false
   },
   "dart.flutterSdkPath": "/Users/gautamkale/Docsense/flutter",
-  "dart.androidSdkPath": "/Users/gautamkale/Library/Android/sdk"
+  "dart.androidSdkPath": "/Users/gautamkale/Library/Android/sdk",
+  "java.configuration.updateBuildConfiguration": "interactive"
 }
