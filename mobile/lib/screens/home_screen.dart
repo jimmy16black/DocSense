@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -6,7 +7,10 @@ import 'package:intl/intl.dart';
 import '../core/theme/app_theme.dart';
 import '../models/document_model.dart';
 import '../providers/documents_provider.dart';
+import '../widgets/ambient_background.dart';
+import '../widgets/glass_card.dart';
 import '../widgets/offline_banner.dart';
+import '../widgets/staggered_fade_slide.dart';
 import 'actions_screen.dart';
 import 'compare_screen.dart';
 import 'document_detail_screen.dart';
@@ -25,9 +29,28 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
+      backgroundColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
       appBar: AppBar(
-        title: const Text('DocSense'),
+        title: const Text(
+          'DocSense',
+          style: TextStyle(
+            fontWeight: FontWeight.w700,
+            letterSpacing: -0.5,
+          ),
+        ),
+        backgroundColor: (isDark ? const Color(0xFF0F172A) : Colors.white)
+            .withValues(alpha: 0.75),
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        flexibleSpace: ClipRect(
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+            child: Container(color: Colors.transparent),
+          ),
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
@@ -52,41 +75,58 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ),
         ],
       ),
-      body: Column(
-        children: [
-          const OfflineBanner(),
-          Expanded(
-            child: IndexedStack(
-              index: _currentIndex,
-              children: const [
-                _DocumentsTab(),
-                CompareScreen(),
-                ActionsScreen(),
-              ],
+      body: AmbientBackground(
+        child: Column(
+          children: [
+            const OfflineBanner(),
+            Expanded(
+              child: IndexedStack(
+                index: _currentIndex,
+                children: const [
+                  _DocumentsTab(),
+                  CompareScreen(),
+                  ActionsScreen(),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+      bottomNavigationBar: Container(
+        decoration: BoxDecoration(
+          border: Border(
+            top: BorderSide(
+              color: isDark
+                  ? Colors.white.withValues(alpha: 0.08)
+                  : const Color(0xFFE2E8F0),
+              width: 0.8,
             ),
           ),
-        ],
-      ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _currentIndex,
-        onDestinationSelected: (idx) => setState(() => _currentIndex = idx),
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.description_outlined),
-            selectedIcon: Icon(Icons.description),
-            label: 'Documents',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.compare_arrows_outlined),
-            selectedIcon: Icon(Icons.compare_arrows),
-            label: 'Compare',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.alarm_outlined),
-            selectedIcon: Icon(Icons.alarm),
-            label: 'Actions',
-          ),
-        ],
+        ),
+        child: NavigationBar(
+          selectedIndex: _currentIndex,
+          elevation: 0,
+          backgroundColor: (isDark ? const Color(0xFF0F172A) : Colors.white)
+              .withValues(alpha: 0.85),
+          onDestinationSelected: (idx) => setState(() => _currentIndex = idx),
+          destinations: const [
+            NavigationDestination(
+              icon: Icon(Icons.description_outlined),
+              selectedIcon: Icon(Icons.description),
+              label: 'Documents',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.compare_arrows_outlined),
+              selectedIcon: Icon(Icons.compare_arrows),
+              label: 'Compare',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.alarm_outlined),
+              selectedIcon: Icon(Icons.alarm),
+              label: 'Actions',
+            ),
+          ],
+        ),
       ),
       floatingActionButton: _currentIndex == 0
           ? FloatingActionButton.extended(
@@ -101,8 +141,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               },
               backgroundColor: AppColors.primary,
               foregroundColor: Colors.white,
+              elevation: 4,
               icon: const Icon(Icons.add),
-              label: const Text('Add Document'),
+              label: const Text(
+                'Add Document',
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
             )
           : null,
     );
@@ -151,34 +195,47 @@ class _DocumentsTab extends ConsumerWidget {
           return Center(
             child: Padding(
               padding: const EdgeInsets.all(AppSpacing.xl),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(
-                    Icons.folder_open,
-                    size: 64,
-                    color: AppColors.textTertiary,
-                  ),
-                  const SizedBox(height: AppSpacing.md),
-                  Text(
-                    ref.watch(documentListFilterProvider).search.isNotEmpty
-                        ? 'No matches found'
-                        : 'No documents yet',
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.textPrimary,
+              child: GlassCard(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.xl,
+                  vertical: AppSpacing.xxl,
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(AppSpacing.md),
+                      decoration: BoxDecoration(
+                        color: AppColors.primaryLight.withValues(alpha: 0.7),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.folder_open,
+                        size: 48,
+                        color: AppColors.primary,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: AppSpacing.xs),
-                  Text(
-                    ref.watch(documentListFilterProvider).search.isNotEmpty
-                        ? 'Try a different search term, e.g. "policy" or "GST".'
-                        : 'Upload an insurance policy, GST invoice, or contract to get grounded answers and actions.',
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(color: AppColors.textSecondary),
-                  ),
-                ],
+                    const SizedBox(height: AppSpacing.md),
+                    Text(
+                      ref.watch(documentListFilterProvider).search.isNotEmpty
+                          ? 'No matches found'
+                          : 'No documents yet',
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.xs),
+                    Text(
+                      ref.watch(documentListFilterProvider).search.isNotEmpty
+                          ? 'Try a different search term, e.g. "policy" or "GST".'
+                          : 'Upload an insurance policy, GST invoice, or contract to get grounded answers and actions.',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(color: AppColors.textSecondary),
+                    ),
+                  ],
+                ),
               ),
             ),
           );
@@ -206,8 +263,6 @@ class _DocumentsTab extends ConsumerWidget {
                           padding: const EdgeInsets.all(AppSpacing.md),
                           child: TextButton(
                             onPressed: () {
-                              // Grow the fetched window by one page (bounded,
-                              // dependency-free infinite list).
                               ref
                                       .read(documentPageSizeProvider.notifier)
                                       .state +=
@@ -219,7 +274,10 @@ class _DocumentsTab extends ConsumerWidget {
                       );
                     }
                     final doc = docs[index];
-                    return _DocumentCard(document: doc);
+                    return StaggeredFadeSlide(
+                      index: index,
+                      child: _DocumentCard(document: doc),
+                    );
                   },
                 ),
               ),
@@ -240,101 +298,98 @@ class _DocumentCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final dateStr = DateFormat('dd MMM yyyy').format(document.createdAt);
 
-    return Card(
+    return GlassCard(
       margin: const EdgeInsets.only(bottom: AppSpacing.md),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => DocumentDetailScreen(documentId: document.id),
-            ),
-          );
-        },
-        child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.lg),
-          child: Column(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => DocumentDetailScreen(documentId: document.id),
+          ),
+        );
+      },
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(AppSpacing.sm),
-                    decoration: BoxDecoration(
-                      color: AppColors.primaryLight,
-                      borderRadius: BorderRadius.circular(8),
+              Container(
+                padding: const EdgeInsets.all(AppSpacing.sm),
+                decoration: BoxDecoration(
+                  color: AppColors.primaryLight.withValues(alpha: 0.8),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(
+                  Icons.picture_as_pdf,
+                  color: AppColors.primary,
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      document.title,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textPrimary,
+                        letterSpacing: -0.2,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    child: const Icon(
-                      Icons.picture_as_pdf,
+                    const SizedBox(height: 2),
+                    Text(
+                      document.documentType ?? 'DOCUMENT',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textSecondary,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              _StatusBadge(status: document.status),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.md),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Added $dateStr',
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: AppColors.textTertiary,
+                ),
+              ),
+              const Row(
+                children: [
+                  Text(
+                    'View Analysis',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
                       color: AppColors.primary,
                     ),
                   ),
-                  const SizedBox(width: AppSpacing.md),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          document.title,
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.textPrimary,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          document.documentType ?? 'DOCUMENT',
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: AppColors.textSecondary,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  _StatusBadge(status: document.status),
-                ],
-              ),
-              const SizedBox(height: AppSpacing.md),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'Added $dateStr',
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: AppColors.textTertiary,
-                    ),
-                  ),
-                  Row(
-                    children: [
-                      const Text(
-                        'View Analysis',
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.primary,
-                        ),
-                      ),
-                      const SizedBox(width: 4),
-                      const Icon(
-                        Icons.arrow_forward_ios,
-                        size: 12,
-                        color: AppColors.primary,
-                      ),
-                    ],
+                  SizedBox(width: 4),
+                  Icon(
+                    Icons.arrow_forward_ios,
+                    size: 12,
+                    color: AppColors.primary,
                   ),
                 ],
               ),
             ],
           ),
-        ),
+        ],
       ),
     );
   }
@@ -421,35 +476,44 @@ class _LibrarySearchBarState extends ConsumerState<_LibrarySearchBar> {
     return Padding(
       padding: const EdgeInsets.fromLTRB(
         AppSpacing.lg,
+        AppSpacing.md,
         AppSpacing.lg,
-        AppSpacing.lg,
-        0,
+        AppSpacing.xs,
       ),
-      child: TextField(
-        controller: _controller,
-        textInputAction: TextInputAction.search,
-        onChanged: _onChanged,
-        decoration: InputDecoration(
-          hintText: 'Search policies, invoices, contracts…',
-          prefixIcon: const Icon(Icons.search),
-          suffixIcon: _controller.text.isNotEmpty
-              ? IconButton(
-                  icon: const Icon(Icons.close),
-                  onPressed: () {
-                    _controller.clear();
-                    _onChanged('');
-                  },
-                )
-              : null,
-          filled: true,
-          fillColor: const Color(0xFFF9FAFB),
-          contentPadding: const EdgeInsets.symmetric(
-            vertical: 0,
-            horizontal: AppSpacing.md,
-          ),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide.none,
+      child: GlassCard(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.sm,
+          vertical: 2,
+        ),
+        borderRadius: BorderRadius.circular(14),
+        child: TextField(
+          controller: _controller,
+          textInputAction: TextInputAction.search,
+          onChanged: _onChanged,
+          decoration: InputDecoration(
+            hintText: 'Search policies, invoices, contracts…',
+            hintStyle: const TextStyle(
+              fontSize: 14,
+              color: AppColors.textTertiary,
+            ),
+            prefixIcon: const Icon(Icons.search, color: AppColors.primary),
+            suffixIcon: _controller.text.isNotEmpty
+                ? IconButton(
+                    icon: const Icon(Icons.close, size: 18),
+                    onPressed: () {
+                      _controller.clear();
+                      _onChanged('');
+                    },
+                  )
+                : null,
+            filled: false,
+            border: InputBorder.none,
+            enabledBorder: InputBorder.none,
+            focusedBorder: InputBorder.none,
+            contentPadding: const EdgeInsets.symmetric(
+              vertical: 12,
+              horizontal: AppSpacing.xs,
+            ),
           ),
         ),
       ),

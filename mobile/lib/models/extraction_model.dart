@@ -59,28 +59,28 @@ class ExtractionEnvelope {
               .toDouble(),
       title: json['title'] ?? 'Untitled Document',
       summaryBullets:
-          (json['summaryBullets'] ?? json['summary_bullets'] as List<dynamic>?)
+          ((json['summaryBullets'] ?? json['summary_bullets']) as List?)
               ?.map((e) => e.toString())
-              .toList() ??
-          [],
+              .toList()
+              .cast<String>() ??
+          const <String>[],
       importantAlerts:
-          (json['importantAlerts'] ??
-                  json['important_alerts'] as List<dynamic>?)
+          ((json['importantAlerts'] ?? json['important_alerts']) as List?)
               ?.map((e) => e.toString())
-              .toList() ??
-          [],
+              .toList()
+              .cast<String>() ??
+          const <String>[],
       suggestedQuestions:
-          (json['suggestedQuestions'] ??
-                  json['suggested_questions'] as List<dynamic>?)
+          ((json['suggestedQuestions'] ?? json['suggested_questions']) as List?)
               ?.map((e) => e.toString())
-              .toList() ??
-          [],
+              .toList()
+              .cast<String>() ??
+          const <String>[],
       recommendedActions:
-          (json['recommendedActions'] ??
-                  json['recommended_actions'] as List<dynamic>?)
-              ?.map((e) => e as Map<String, dynamic>)
+          ((json['recommendedActions'] ?? json['recommended_actions']) as List?)
+              ?.whereType<Map<String, dynamic>>()
               .toList() ??
-          [],
+          const <Map<String, dynamic>>[],
       payload: (json['payload'] as Map<String, dynamic>?) ?? {},
       citations:
           (json['citations'] as List<dynamic>?)

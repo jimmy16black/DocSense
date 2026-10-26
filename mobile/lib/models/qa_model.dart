@@ -25,11 +25,11 @@ class AskResponse {
               .toList() ??
           [],
       suggestedFollowUps:
-          (json['suggestedFollowUps'] ??
-                  json['suggested_follow_ups'] as List<dynamic>?)
+          ((json['suggestedFollowUps'] ?? json['suggested_follow_ups']) as List?)
               ?.map((e) => e.toString())
-              .toList() ??
-          [],
+              .toList()
+              .cast<String>() ??
+          const <String>[],
       groundedInEvidence:
           json['groundedInEvidence'] ?? json['grounded_in_evidence'] ?? true,
     );
@@ -80,10 +80,11 @@ class CompareResponse {
               .toList() ??
           [],
       recommendations:
-          (json['recommendations'] as List<dynamic>?)
+          (json['recommendations'] as List?)
               ?.map((e) => e.toString())
-              .toList() ??
-          [],
+              .toList()
+              .cast<String>() ??
+          const <String>[],
     );
   }
 }

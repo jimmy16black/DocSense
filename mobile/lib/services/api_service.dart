@@ -1,4 +1,6 @@
+import 'dart:io' show Platform;
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 
 import '../core/network/api_client.dart';
 import '../models/action_model.dart';
@@ -36,11 +38,28 @@ class ApiService {
     required List<int> bytes,
     required String mimeType,
   }) async {
-    await client.dio.put<void>(
-      uploadUrl,
+    // S3/MinIO presigned URLs already authenticate via query parameters.
+    // Attaching Authorization: Bearer triggers an HTTP 400 InvalidRequest.
+    // In AWS SigV4, the Host header is part of the signed headers.
+    // If running on an Android emulator, localhost maps to 10.0.2.2,
+    // but the Host header MUST match the original signed host (e.g. localhost:9000).
+    final uri = Uri.parse(uploadUrl);
+    final originalHost = uri.hasPort ? '${uri.host}:${uri.port}' : uri.host;
+
+    String targetUrl = uploadUrl;
+    if (!kIsWeb && Platform.isAndroid && targetUrl.contains('://localhost:')) {
+      targetUrl = targetUrl.replaceFirst('://localhost:', '://10.0.2.2:');
+    }
+
+    final rawDio = Dio();
+    await rawDio.put<void>(
+      targetUrl,
       data: bytes,
       options: Options(
-        headers: {'Content-Type': mimeType},
+        headers: {
+          'Content-Type': mimeType,
+          'Host': originalHost,
+        },
         responseType: ResponseType.plain,
       ),
     );

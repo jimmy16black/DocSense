@@ -129,6 +129,52 @@ class AIGatewayService:
                     )
                     raise
 
+        # Direct OpenAI or OpenAI-compatible local model (Ollama, LM Studio, vLLM, LocalAI)
+        if self.openai_api_key or settings.OPENAI_BASE_URL:
+            try:
+                from openai import AsyncOpenAI
+
+                client = AsyncOpenAI(
+                    api_key=self.openai_api_key or "local-model",
+                    base_url=settings.OPENAI_BASE_URL or "https://api.openai.com/v1",
+                )
+                response = await client.chat.completions.create(
+                    model=target_model,
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": safe_user_prompt},
+                    ],
+                    temperature=temperature,
+                )
+                return response.choices[0].message.content or ""
+            except Exception as e:
+                logger.warning(
+                    "Primary AI call via OpenAI/local endpoint failed, attempting fallback model",
+                    error=str(e),
+                    primary_model=target_model,
+                )
+                if (
+                    settings.DEFAULT_FALLBACK_MODEL
+                    and settings.DEFAULT_FALLBACK_MODEL != target_model
+                ):
+                    try:
+                        fallback_response = await client.chat.completions.create(
+                            model=settings.DEFAULT_FALLBACK_MODEL,
+                            messages=[
+                                {"role": "system", "content": system_prompt},
+                                {"role": "user", "content": safe_user_prompt},
+                            ],
+                            temperature=temperature,
+                        )
+                        return fallback_response.choices[0].message.content or ""
+                    except Exception as fallback_err:
+                        logger.error(
+                            "Both primary and fallback AI calls failed",
+                            error=str(fallback_err),
+                        )
+                        raise
+                raise
+
         # Fallback deterministic extractor for development / offline tests
         logger.info("Using mock/offline AI completion response")
         return self._generate_mock_completion(user_prompt)
@@ -197,8 +243,8 @@ class AIGatewayService:
         if self.portkey_client is not None:
             api_key = self.portkey_api_key
             base_url = "https://api.portkey.ai/v1"
-        elif self.openai_api_key:
-            api_key = self.openai_api_key
+        elif self.openai_api_key or settings.OPENAI_BASE_URL:
+            api_key = self.openai_api_key or "local-model"
             base_url = settings.OPENAI_BASE_URL or "https://api.openai.com/v1"
 
         if not api_key:
@@ -226,7 +272,7 @@ class AIGatewayService:
         # a deterministic pseudo-vector fallback so CI needs no secrets — but
         # note those vectors carry NO semantic signal; hybrid search therefore
         # also runs a lexical leg which works in every environment.
-        if self.portkey_api_key or self.openai_api_key:
+        if self.portkey_api_key or self.openai_api_key or settings.OPENAI_BASE_URL:
             try:
                 return await self._embed_via_api(texts)
             except Exception as e:

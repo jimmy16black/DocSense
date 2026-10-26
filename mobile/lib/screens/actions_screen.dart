@@ -5,6 +5,8 @@ import '../core/network/app_error.dart';
 import '../core/theme/app_theme.dart';
 import '../models/action_model.dart';
 import '../services/api_service.dart';
+import '../widgets/glass_card.dart';
+import '../widgets/staggered_fade_slide.dart';
 
 class ActionsScreen extends StatefulWidget {
   const ActionsScreen({super.key});
@@ -84,26 +86,43 @@ class _ActionsScreenState extends State<ActionsScreen> {
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(AppSpacing.xl),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: const [
-              Icon(
-                Icons.event_available,
-                size: 64,
-                color: AppColors.textTertiary,
-              ),
-              SizedBox(height: AppSpacing.md),
-              Text(
-                'No pending actions or reminders',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-              SizedBox(height: AppSpacing.xs),
-              Text(
-                'Actions recommended from policy expirations and GST deadlines will show up here.',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: AppColors.textSecondary),
-              ),
-            ],
+          child: GlassCard(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.xl,
+              vertical: AppSpacing.xxl,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(AppSpacing.md),
+                  decoration: BoxDecoration(
+                    color: AppColors.primaryLight.withValues(alpha: 0.7),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.event_available,
+                    size: 48,
+                    color: AppColors.primary,
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.md),
+                const Text(
+                  'No pending actions or reminders',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.xs),
+                const Text(
+                  'Actions recommended from policy expirations and GST deadlines will show up here.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: AppColors.textSecondary),
+                ),
+              ],
+            ),
           ),
         ),
       );
@@ -120,10 +139,10 @@ class _ActionsScreenState extends State<ActionsScreen> {
               ? DateFormat('dd MMM yyyy').format(action.dueDate!)
               : 'No deadline';
 
-          return Card(
-            margin: const EdgeInsets.only(bottom: AppSpacing.md),
-            child: Padding(
-              padding: const EdgeInsets.all(AppSpacing.lg),
+          return StaggeredFadeSlide(
+            index: index,
+            child: GlassCard(
+              margin: const EdgeInsets.only(bottom: AppSpacing.md),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [

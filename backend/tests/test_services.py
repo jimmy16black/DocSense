@@ -227,3 +227,30 @@ async def test_retrieve_hybrid_returns_relevant_topk(db_session, mock_current_us
     # Retrieved context must contain the term-bearing chunks (not just first-N)
     joined = " ".join(c.content for c in results).lower()
     assert "deductible" in joined
+
+
+@pytest.mark.asyncio
+async def test_ai_gateway_completion_with_openai_compatible_endpoint(monkeypatch):
+    from unittest.mock import AsyncMock, MagicMock
+
+    from app.services.ai_gateway import AIGatewayService
+
+    svc = AIGatewayService()
+    svc.openai_api_key = "test-local-key"
+    svc.portkey_client = None
+
+    mock_resp = MagicMock()
+    mock_resp.choices = [MagicMock(message=MagicMock(content='{"status": "ok"}'))]
+
+    mock_client = MagicMock()
+    mock_client.chat.completions.create = AsyncMock(return_value=mock_resp)
+
+    monkeypatch.setattr("openai.AsyncOpenAI", lambda **kwargs: mock_client)
+
+    result = await svc.generate_completion(
+        system_prompt="system",
+        user_prompt="user question",
+        model="llama3.2",
+    )
+    assert result == '{"status": "ok"}'
+    mock_client.chat.completions.create.assert_awaited_once()

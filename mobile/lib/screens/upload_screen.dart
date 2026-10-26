@@ -1,4 +1,5 @@
 import 'dart:io' show File;
+import 'dart:ui';
 
 import 'package:crypto/crypto.dart';
 import 'package:flutter/material.dart';
@@ -7,6 +8,8 @@ import 'package:file_picker/file_picker.dart';
 import '../core/network/app_error.dart';
 import '../core/theme/app_theme.dart';
 import '../services/api_service.dart';
+import '../widgets/ambient_background.dart';
+import '../widgets/glass_card.dart';
 import 'document_detail_screen.dart';
 
 class UploadScreen extends StatefulWidget {
@@ -127,6 +130,7 @@ class _UploadScreenState extends State<UploadScreen> {
         ),
       );
     } catch (e) {
+      debugPrint('DocSense upload error: $e');
       setState(() {
         _isUploading = false;
       });
@@ -143,82 +147,113 @@ class _UploadScreenState extends State<UploadScreen> {
   }
 
   @override
+  @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Upload Document')),
-      body: Padding(
-        padding: const EdgeInsets.all(AppSpacing.xl),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            if (!_isUploading) ...[
-              const Text(
-                'Select Document Type',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.textPrimary,
+      backgroundColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
+      appBar: AppBar(
+        title: const Text(
+          'Upload Document',
+          style: TextStyle(fontWeight: FontWeight.w700, letterSpacing: -0.5),
+        ),
+        backgroundColor: (isDark ? const Color(0xFF0F172A) : Colors.white)
+            .withValues(alpha: 0.75),
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        flexibleSpace: ClipRect(
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+            child: Container(color: Colors.transparent),
+          ),
+        ),
+      ),
+      body: AmbientBackground(
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.xl),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (!_isUploading) ...[
+                const Text(
+                  'Select Document Type',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textPrimary,
+                  ),
                 ),
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              DropdownButtonFormField<String>(
-                initialValue: _documentType,
-                decoration: const InputDecoration(),
-                items: const [
-                  DropdownMenuItem(
-                    value: 'INSURANCE_POLICY',
-                    child: Text('Insurance Policy'),
-                  ),
-                  DropdownMenuItem(
-                    value: 'GST_INVOICE',
-                    child: Text('GST Invoice / Tax Bill'),
-                  ),
-                  DropdownMenuItem(
-                    value: 'BILL_RECEIPT',
-                    child: Text('Utility Bill / Receipt'),
-                  ),
-                  DropdownMenuItem(
-                    value: 'CONTRACT',
-                    child: Text('Rental / Service Contract'),
-                  ),
-                  DropdownMenuItem(
-                    value: 'OTHER',
-                    child: Text('Other Document'),
-                  ),
-                ],
-                onChanged: (val) {
-                  if (val != null) setState(() => _documentType = val);
-                },
-              ),
-              const SizedBox(height: AppSpacing.xl),
-              GestureDetector(
-                onTap: _pickFile,
-                child: Container(
-                  height: 180,
-                  decoration: BoxDecoration(
-                    color: AppColors.elevated,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: _selectedFile != null
-                          ? AppColors.primary
-                          : const Color(0xFFD1D5DB),
-                      width: 2,
+                const SizedBox(height: AppSpacing.sm),
+                GlassCard(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+                  borderRadius: BorderRadius.circular(12),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButtonFormField<String>(
+                      initialValue: _documentType,
+                      decoration: const InputDecoration(
+                        border: InputBorder.none,
+                        enabledBorder: InputBorder.none,
+                        focusedBorder: InputBorder.none,
+                        contentPadding: EdgeInsets.zero,
+                        filled: false,
+                      ),
+                      items: const [
+                        DropdownMenuItem(
+                          value: 'INSURANCE_POLICY',
+                          child: Text('Insurance Policy'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'GST_INVOICE',
+                          child: Text('GST Invoice / Tax Bill'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'BILL_RECEIPT',
+                          child: Text('Utility Bill / Receipt'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'CONTRACT',
+                          child: Text('Rental / Service Contract'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'OTHER',
+                          child: Text('Other Document'),
+                        ),
+                      ],
+                      onChanged: (val) {
+                        if (val != null) setState(() => _documentType = val);
+                      },
                     ),
                   ),
+                ),
+                const SizedBox(height: AppSpacing.xl),
+                GlassCard(
+                  onTap: _pickFile,
+                  padding: const EdgeInsets.symmetric(vertical: AppSpacing.xxl),
                   child: Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(
-                          _selectedFile != null
-                              ? Icons.check_circle
-                              : Icons.cloud_upload_outlined,
-                          size: 48,
-                          color: _selectedFile != null
-                              ? AppColors.success
-                              : AppColors.primary,
+                        Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: (_selectedFile != null
+                                    ? AppColors.success
+                                    : AppColors.primary)
+                                .withValues(alpha: 0.12),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            _selectedFile != null
+                                ? Icons.check_circle_outline
+                                : Icons.cloud_upload_outlined,
+                            size: 44,
+                            color: _selectedFile != null
+                                ? AppColors.success
+                                : AppColors.primary,
+                          ),
                         ),
-                        const SizedBox(height: AppSpacing.sm),
+                        const SizedBox(height: AppSpacing.md),
                         Text(
                           _selectedFile != null
                               ? _selectedFile!.name
@@ -231,7 +266,8 @@ class _UploadScreenState extends State<UploadScreen> {
                                 : AppColors.primary,
                           ),
                         ),
-                        if (_selectedFile != null)
+                        if (_selectedFile != null) ...[
+                          const SizedBox(height: 4),
                           Text(
                             '${(_selectedFile!.size / 1024).toStringAsFixed(1)} KB',
                             style: const TextStyle(
@@ -239,46 +275,58 @@ class _UploadScreenState extends State<UploadScreen> {
                               color: AppColors.textSecondary,
                             ),
                           ),
+                        ],
                       ],
                     ),
                   ),
                 ),
-              ),
-              const Spacer(),
-              ElevatedButton(
-                onPressed: _selectedFile != null
-                    ? _startUploadAndProcess
-                    : null,
-                child: const Text('Process & Extract'),
-              ),
-            ] else ...[
-              const Spacer(),
-              const Center(
-                child: SizedBox(
-                  width: 56,
-                  height: 56,
-                  child: CircularProgressIndicator(strokeWidth: 3),
+                const Spacer(),
+                ElevatedButton(
+                  onPressed: _selectedFile != null
+                      ? _startUploadAndProcess
+                      : null,
+                  child: const Text('Process & Extract'),
                 ),
-              ),
-              const SizedBox(height: AppSpacing.xl),
-              Text(
-                _currentStep,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.textPrimary,
+              ] else ...[
+                const Spacer(),
+                Center(
+                  child: GlassCard(
+                    padding: const EdgeInsets.all(AppSpacing.xxl),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const SizedBox(
+                          width: 52,
+                          height: 52,
+                          child: CircularProgressIndicator(strokeWidth: 3),
+                        ),
+                        const SizedBox(height: AppSpacing.xl),
+                        Text(
+                          _currentStep,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                        const SizedBox(height: AppSpacing.sm),
+                        const Text(
+                          'This document is being analyzed with grounded evidence verification.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              const Text(
-                'This document is being analyzed with grounded evidence verification.',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
-              ),
-              const Spacer(),
+                const Spacer(),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );

@@ -1,10 +1,13 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/theme/app_theme.dart';
 import '../providers/documents_provider.dart';
+import '../widgets/ambient_background.dart';
 import '../widgets/citation_card.dart';
 import '../widgets/confidence_badge.dart';
+import '../widgets/glass_card.dart';
 import 'qa_screen.dart';
 
 class DocumentDetailScreen extends ConsumerWidget {
@@ -16,9 +19,25 @@ class DocumentDetailScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final docAsync = ref.watch(documentDetailProvider(documentId));
 
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
+      backgroundColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
       appBar: AppBar(
-        title: const Text('Document Analysis'),
+        title: const Text(
+          'Document Analysis',
+          style: TextStyle(fontWeight: FontWeight.w700, letterSpacing: -0.5),
+        ),
+        backgroundColor: (isDark ? const Color(0xFF0F172A) : Colors.white)
+            .withValues(alpha: 0.75),
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        flexibleSpace: ClipRect(
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+            child: Container(color: Colors.transparent),
+          ),
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
@@ -26,20 +45,19 @@ class DocumentDetailScreen extends ConsumerWidget {
           ),
         ],
       ),
-      body: docAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (err, stack) =>
-            Center(child: Text('Failed to load document: $err')),
-        data: (doc) {
-          final extraction = doc.latestExtraction;
+      body: AmbientBackground(
+        child: docAsync.when(
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (err, stack) =>
+              Center(child: Text('Failed to load document: $err')),
+          data: (doc) {
+            final extraction = doc.latestExtraction;
 
-          return ListView(
-            padding: const EdgeInsets.all(AppSpacing.lg),
-            children: [
-              // Header Card
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(AppSpacing.lg),
+            return ListView(
+              padding: const EdgeInsets.all(AppSpacing.lg),
+              children: [
+                // Header Card
+                GlassCard(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -76,63 +94,60 @@ class DocumentDetailScreen extends ConsumerWidget {
                     ],
                   ),
                 ),
-              ),
 
-              const SizedBox(height: AppSpacing.md),
+                const SizedBox(height: AppSpacing.md),
 
-              // Important Alerts (High / Medium Severity Banners)
-              if (extraction != null &&
-                  extraction.importantAlerts.isNotEmpty) ...[
-                const Text(
-                  'Critical Alerts & Exclusions',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.textPrimary,
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.sm),
-                ...extraction.importantAlerts.map(
-                  (alert) => Container(
-                    margin: const EdgeInsets.only(bottom: AppSpacing.sm),
-                    padding: const EdgeInsets.all(AppSpacing.md),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFFEF2F2),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: const Color(0xFFFCA5A5)),
+                // Important Alerts (High / Medium Severity Banners)
+                if (extraction != null &&
+                    extraction.importantAlerts.isNotEmpty) ...[
+                  const Text(
+                    'Critical Alerts & Exclusions',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textPrimary,
                     ),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Icon(
-                          Icons.warning_amber_rounded,
-                          color: AppColors.riskHigh,
-                          size: 20,
-                        ),
-                        const SizedBox(width: AppSpacing.sm),
-                        Expanded(
-                          child: Text(
-                            alert,
-                            style: const TextStyle(
-                              color: AppColors.riskHigh,
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  ...extraction.importantAlerts.map(
+                    (alert) => Container(
+                      margin: const EdgeInsets.only(bottom: AppSpacing.sm),
+                      padding: const EdgeInsets.all(AppSpacing.md),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFEF2F2).withValues(alpha: 0.85),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: const Color(0xFFFCA5A5)),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Icon(
+                            Icons.warning_amber_rounded,
+                            color: AppColors.riskHigh,
+                            size: 20,
+                          ),
+                          const SizedBox(width: AppSpacing.sm),
+                          Expanded(
+                            child: Text(
+                              alert,
+                              style: const TextStyle(
+                                color: AppColors.riskHigh,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(height: AppSpacing.md),
-              ],
+                  const SizedBox(height: AppSpacing.md),
+                ],
 
-              // Key Summary Bullets
-              if (extraction != null &&
-                  extraction.summaryBullets.isNotEmpty) ...[
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(AppSpacing.lg),
+                // Key Summary Bullets
+                if (extraction != null &&
+                    extraction.summaryBullets.isNotEmpty) ...[
+                  GlassCard(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -173,15 +188,12 @@ class DocumentDetailScreen extends ConsumerWidget {
                       ],
                     ),
                   ),
-                ),
-                const SizedBox(height: AppSpacing.md),
-              ],
+                  const SizedBox(height: AppSpacing.md),
+                ],
 
-              // Extracted Payload Table
-              if (extraction != null && extraction.payload.isNotEmpty) ...[
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(AppSpacing.lg),
+                // Extracted Payload Table
+                if (extraction != null && extraction.payload.isNotEmpty) ...[
+                  GlassCard(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -223,38 +235,38 @@ class DocumentDetailScreen extends ConsumerWidget {
                       ],
                     ),
                   ),
-                ),
-                const SizedBox(height: AppSpacing.md),
-              ],
+                  const SizedBox(height: AppSpacing.md),
+                ],
 
-              // Citations
-              if (doc.citations.isNotEmpty) ...[
-                const Text(
-                  'Verified Source Citations',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.textPrimary,
+                // Citations
+                if (doc.citations.isNotEmpty) ...[
+                  const Text(
+                    'Verified Source Citations',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textPrimary,
+                    ),
                   ),
-                ),
-                ...doc.citations.map((c) => CitationCard(citation: c)),
-                const SizedBox(height: AppSpacing.lg),
-              ],
+                  ...doc.citations.map((c) => CitationCard(citation: c)),
+                  const SizedBox(height: AppSpacing.lg),
+                ],
 
-              // Action Buttons
-              ElevatedButton.icon(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => QAScreen(document: doc)),
-                  );
-                },
-                icon: const Icon(Icons.chat_outlined),
-                label: const Text('Ask Document (Grounded Q&A)'),
-              ),
-            ],
-          );
-        },
+                // Action Buttons
+                ElevatedButton.icon(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => QAScreen(document: doc)),
+                    );
+                  },
+                  icon: const Icon(Icons.chat_outlined),
+                  label: const Text('Ask Document (Grounded Q&A)'),
+                ),
+              ],
+            );
+          },
+        ),
       ),
     );
   }
