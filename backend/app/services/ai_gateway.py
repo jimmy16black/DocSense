@@ -189,23 +189,23 @@ class AIGatewayService:
     def _generate_mock_completion(self, user_prompt: str) -> str:
         """Deterministic mock response for local testing and CI"""
         if user_prompt.startswith("Question:"):
-            # Check if there is retrieved context in the prompt
-            context_section = user_prompt.split("Context:\n", 1)[-1] if "Context:\n" in user_prompt else ""
+            # Extract question line for matching
+            q_line = user_prompt.split("\n\nContext:\n", 1)[0].lower()
             quote = "Document terms and specifications as outlined."
-            if "Monthly Base Rent" in context_section:
-                answer = "The monthly base rent is $12,500.00 USD, payable on the first of each month, with a security deposit of $25,000.00 USD."
-                quote = "Monthly Base Rent: Tenant covenants and agrees to pay Landlord base rent in the amount of $12,500.00 USD"
-                heading = "SECTION 2: RENT AND SECURITY DEPOSIT"
-                page = 1
-            elif "Early Termination" in context_section:
+            if "termination" in q_line:
                 answer = "Early termination is permitted after 24 months with 90 days written notice and an early termination fee equal to two months rent ($25,000.00)."
                 quote = "Tenant may terminate this Lease after twenty-four (24) months by providing at least ninety (90) days written notice"
                 heading = "SECTION 3: MAINTENANCE, UTILITIES & TERMINATION"
                 page = 2
-            elif "100 Innovation Way" in context_section:
-                answer = "The property is located at Suite 400, 100 Innovation Way, San Jose, CA 95134."
+            elif "address" in q_line or "located" in q_line:
+                answer = "The leased property is located at Suite 400, 100 Innovation Way, San Jose, CA 95134, comprising approximately 8,500 rentable square feet."
                 quote = "The property located at Suite 400, 100 Innovation Way, San Jose, CA 95134"
                 heading = "SECTION 1: PREMISES & TERM"
+                page = 1
+            elif "rent" in q_line or "deposit" in q_line:
+                answer = "The monthly base rent is $12,500.00 USD, payable on or before the first day of each month, with a security deposit of $25,000.00 USD."
+                quote = "Monthly Base Rent: Tenant covenants and agrees to pay Landlord base rent in the amount of $12,500.00 USD"
+                heading = "SECTION 2: RENT AND SECURITY DEPOSIT"
                 page = 1
             else:
                 answer = "Based on the document context, the specified terms are covered in the retrieved sections."

@@ -25,33 +25,39 @@ class CitationCard extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Row(
-                children: [
-                  const Icon(
-                    Icons.bookmark_outline,
-                    size: 16,
-                    color: AppColors.primary,
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    'Page ${citation.pageNumber}',
-                    style: const TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
+              Expanded(
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.bookmark_outline,
+                      size: 16,
                       color: AppColors.primary,
                     ),
-                  ),
-                  if (citation.sectionHeading != null) ...[
-                    const SizedBox(width: 6),
+                    const SizedBox(width: 4),
                     Text(
-                      '• ${citation.sectionHeading}',
+                      'Page ${citation.pageNumber}',
                       style: const TextStyle(
                         fontSize: 12,
-                        color: AppColors.textSecondary,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.primary,
                       ),
                     ),
+                    if (citation.sectionHeading != null) ...[
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          '• ${citation.sectionHeading}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      ),
+                    ],
                   ],
-                ],
+                ),
               ),
               if (onPageTap != null)
                 InkWell(
