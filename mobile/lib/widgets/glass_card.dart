@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 /// A sleek glassmorphic container with backdrop blur, specular border highlight,
 /// and tactile micro-press spring animation.
@@ -16,6 +17,7 @@ class GlassCard extends StatefulWidget {
   final double borderWidth;
   final List<BoxShadow>? shadows;
   final double scaleOnTap;
+  final bool enableHaptics;
 
   const GlassCard({
     super.key,
@@ -30,7 +32,8 @@ class GlassCard extends StatefulWidget {
     this.borderGradient,
     this.borderWidth = 1.0,
     this.shadows,
-    this.scaleOnTap = 0.98,
+    this.scaleOnTap = 0.97,
+    this.enableHaptics = true,
   });
 
   @override
@@ -134,14 +137,19 @@ class _GlassCardState extends State<GlassCard> {
 
     if (widget.onTap != null) {
       card = GestureDetector(
-        onTapDown: (_) => setState(() => _isPressed = true),
+        onTapDown: (_) {
+          if (widget.enableHaptics) {
+            HapticFeedback.lightImpact();
+          }
+          setState(() => _isPressed = true);
+        },
         onTapUp: (_) => setState(() => _isPressed = false),
         onTapCancel: () => setState(() => _isPressed = false),
         onTap: widget.onTap,
         behavior: HitTestBehavior.opaque,
         child: AnimatedScale(
           scale: _isPressed ? widget.scaleOnTap : 1.0,
-          duration: const Duration(milliseconds: 120),
+          duration: const Duration(milliseconds: 110),
           curve: Curves.easeOutCubic,
           child: card,
         ),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:docsense_mobile/widgets/glass_card.dart';
 import 'package:docsense_mobile/widgets/ambient_background.dart';
+import 'package:docsense_mobile/widgets/shimmer_skeleton.dart';
 import 'package:docsense_mobile/widgets/staggered_fade_slide.dart';
 
 void main() {
@@ -62,6 +63,21 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Sliding Item'), findsOneWidget);
+    });
+
+    testWidgets('Shimmer and DocumentListSkeleton render placeholders', (tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: DocumentListSkeleton(count: 2),
+          ),
+        ),
+      );
+
+      expect(find.byType(DocumentCardSkeleton), findsNWidgets(2));
+      // Pump a frame to advance shimmer controller
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(find.byType(Shimmer), findsOneWidget);
     });
   });
 }

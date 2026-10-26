@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../core/network/app_error.dart';
 import '../core/theme/app_theme.dart';
@@ -44,6 +45,7 @@ class _QAScreenState extends State<QAScreen> {
     final trimmed = question.trim();
     if (trimmed.isEmpty || _isLoading) return;
 
+    HapticFeedback.lightImpact();
     _controller.clear();
     setState(() {
       _messages.add(_ChatMessageItem(isUser: true, text: trimmed));
@@ -55,6 +57,7 @@ class _QAScreenState extends State<QAScreen> {
         widget.document.id,
         trimmed,
       );
+      HapticFeedback.selectionClick();
       setState(() {
         _messages.add(
           _ChatMessageItem(

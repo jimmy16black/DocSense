@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/theme/app_theme.dart';
@@ -8,6 +9,7 @@ import '../widgets/ambient_background.dart';
 import '../widgets/citation_card.dart';
 import '../widgets/confidence_badge.dart';
 import '../widgets/glass_card.dart';
+import '../widgets/shimmer_skeleton.dart';
 import 'qa_screen.dart';
 
 class DocumentDetailScreen extends ConsumerWidget {
@@ -41,13 +43,17 @@ class DocumentDetailScreen extends ConsumerWidget {
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
-            onPressed: () => ref.refresh(documentDetailProvider(documentId)),
+            tooltip: 'Refresh Analysis',
+            onPressed: () {
+              HapticFeedback.lightImpact();
+              ref.refresh(documentDetailProvider(documentId));
+            },
           ),
         ],
       ),
       body: AmbientBackground(
         child: docAsync.when(
-          loading: () => const Center(child: CircularProgressIndicator()),
+          loading: () => const DocumentDetailSkeleton(),
           error: (err, stack) =>
               Center(child: Text('Failed to load document: $err')),
           data: (doc) {
@@ -56,24 +62,62 @@ class DocumentDetailScreen extends ConsumerWidget {
             return ListView(
               padding: const EdgeInsets.all(AppSpacing.lg),
               children: [
-                // Header Card
+                // Header Card with Spatial Continuity (Hero)
                 GlassCard(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Expanded(
-                            child: Text(
-                              doc.title,
-                              style: const TextStyle(
-                                fontSize: 20,
-                                fontWeight: FontWeight.bold,
-                                color: AppColors.textPrimary,
+                          Hero(
+                            tag: 'doc-icon-${doc.id}',
+                            child: Container(
+                              padding: const EdgeInsets.all(AppSpacing.sm),
+                              decoration: BoxDecoration(
+                                color: AppColors.primaryLight.withValues(alpha: 0.8),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: const Icon(
+                                Icons.picture_as_pdf,
+                                color: AppColors.primary,
+                                size: 24,
                               ),
                             ),
                           ),
+                          const SizedBox(width: AppSpacing.md),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Hero(
+                                  tag: 'doc-title-${doc.id}',
+                                  child: Material(
+                                    color: Colors.transparent,
+                                    child: Text(
+                                      doc.title,
+                                      style: const TextStyle(
+                                        fontSize: 20,
+                                        fontWeight: FontWeight.bold,
+                                        color: AppColors.textPrimary,
+                                        letterSpacing: -0.3,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  'Type: ${doc.documentType ?? "Document"} • ${doc.pageCount} pages',
+                                  style: const TextStyle(
+                                    fontSize: 13,
+                                    color: AppColors.textSecondary,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: AppSpacing.sm),
                           ConfidenceBadge(
                             confidence:
                                 doc.confidenceScore != null &&
@@ -82,14 +126,6 @@ class DocumentDetailScreen extends ConsumerWidget {
                                 : 'MEDIUM',
                           ),
                         ],
-                      ),
-                      const SizedBox(height: AppSpacing.xs),
-                      Text(
-                        'Type: ${doc.documentType ?? "Document"} • ${doc.pageCount} pages',
-                        style: const TextStyle(
-                          fontSize: 13,
-                          color: AppColors.textSecondary,
-                        ),
                       ),
                     ],
                   ),
@@ -255,6 +291,7 @@ class DocumentDetailScreen extends ConsumerWidget {
                 // Action Buttons
                 ElevatedButton.icon(
                   onPressed: () {
+                    HapticFeedback.lightImpact();
                     Navigator.push(
                       context,
                       MaterialPageRoute(builder: (_) => QAScreen(document: doc)),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 
 import '../core/network/app_error.dart';
@@ -6,6 +7,7 @@ import '../core/theme/app_theme.dart';
 import '../models/action_model.dart';
 import '../services/api_service.dart';
 import '../widgets/glass_card.dart';
+import '../widgets/shimmer_skeleton.dart';
 import '../widgets/staggered_fade_slide.dart';
 
 class ActionsScreen extends StatefulWidget {
@@ -64,6 +66,7 @@ class _ActionsScreenState extends State<ActionsScreen> {
 
     if (confirm == true) {
       try {
+        HapticFeedback.mediumImpact();
         await _apiService.updateAction(action.id, status: 'CONFIRMED');
         _loadActions();
       } catch (e) {
@@ -79,7 +82,7 @@ class _ActionsScreenState extends State<ActionsScreen> {
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
+      return const DocumentListSkeleton(count: 3);
     }
 
     if (_actions.isEmpty) {

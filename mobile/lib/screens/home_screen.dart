@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:intl/intl.dart';
@@ -10,6 +11,7 @@ import '../providers/documents_provider.dart';
 import '../widgets/ambient_background.dart';
 import '../widgets/glass_card.dart';
 import '../widgets/offline_banner.dart';
+import '../widgets/shimmer_skeleton.dart';
 import '../widgets/staggered_fade_slide.dart';
 import 'actions_screen.dart';
 import 'compare_screen.dart';
@@ -54,7 +56,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
-            onPressed: () => ref.refresh(documentListProvider),
+            tooltip: 'Refresh Library',
+            onPressed: () {
+              HapticFeedback.lightImpact();
+              ref.refresh(documentListProvider);
+            },
           ),
           IconButton(
             icon: const Icon(Icons.logout),
@@ -108,7 +114,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           elevation: 0,
           backgroundColor: (isDark ? const Color(0xFF0F172A) : Colors.white)
               .withValues(alpha: 0.85),
-          onDestinationSelected: (idx) => setState(() => _currentIndex = idx),
+          onDestinationSelected: (idx) {
+            HapticFeedback.selectionClick();
+            setState(() => _currentIndex = idx);
+          },
           destinations: const [
             NavigationDestination(
               icon: Icon(Icons.description_outlined),
@@ -131,6 +140,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       floatingActionButton: _currentIndex == 0
           ? FloatingActionButton.extended(
               onPressed: () async {
+                HapticFeedback.lightImpact();
                 final result = await Navigator.push(
                   context,
                   MaterialPageRoute(builder: (_) => const UploadScreen()),
@@ -161,7 +171,7 @@ class _DocumentsTab extends ConsumerWidget {
     final docsAsync = ref.watch(documentListProvider);
 
     return docsAsync.when(
-      loading: () => const Center(child: CircularProgressIndicator()),
+      loading: () => const DocumentListSkeleton(),
       error: (err, stack) => Center(
         child: Padding(
           padding: const EdgeInsets.all(AppSpacing.xl),
@@ -314,16 +324,19 @@ class _DocumentCard extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                padding: const EdgeInsets.all(AppSpacing.sm),
-                decoration: BoxDecoration(
-                  color: AppColors.primaryLight.withValues(alpha: 0.8),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: const Icon(
-                  Icons.picture_as_pdf,
-                  color: AppColors.primary,
-                  size: 24,
+              Hero(
+                tag: 'doc-icon-${document.id}',
+                child: Container(
+                  padding: const EdgeInsets.all(AppSpacing.sm),
+                  decoration: BoxDecoration(
+                    color: AppColors.primaryLight.withValues(alpha: 0.8),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(
+                    Icons.picture_as_pdf,
+                    color: AppColors.primary,
+                    size: 24,
+                  ),
                 ),
               ),
               const SizedBox(width: AppSpacing.md),
@@ -331,16 +344,22 @@ class _DocumentCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      document.title,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.textPrimary,
-                        letterSpacing: -0.2,
+                    Hero(
+                      tag: 'doc-title-${document.id}',
+                      child: Material(
+                        color: Colors.transparent,
+                        child: Text(
+                          document.title,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textPrimary,
+                            letterSpacing: -0.2,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 2),
                     Text(

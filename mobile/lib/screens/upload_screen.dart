@@ -3,6 +3,7 @@ import 'dart:ui';
 
 import 'package:crypto/crypto.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
 
 import '../core/network/app_error.dart';
@@ -45,6 +46,7 @@ class _UploadScreenState extends State<UploadScreen> {
         return;
       }
 
+      HapticFeedback.lightImpact();
       setState(() {
         _selectedFile = file;
       });
@@ -54,6 +56,7 @@ class _UploadScreenState extends State<UploadScreen> {
   Future<void> _startUploadAndProcess() async {
     if (_selectedFile == null) return;
 
+    HapticFeedback.mediumImpact();
     setState(() {
       _isUploading = true;
       _currentStep = 'Initializing secure upload vault...';
