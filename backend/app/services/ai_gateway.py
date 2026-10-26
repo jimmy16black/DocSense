@@ -129,14 +129,21 @@ class AIGatewayService:
                     )
                     raise
 
-        # Direct OpenAI or OpenAI-compatible local model (Ollama, LM Studio, vLLM, LocalAI)
-        if self.openai_api_key or settings.OPENAI_BASE_URL:
+        # Direct OpenAI, Google Gemini, or OpenAI-compatible local model (Ollama, LM Studio, vLLM, LocalAI)
+        if self.openai_api_key or self.gemini_api_key or settings.OPENAI_BASE_URL:
             try:
                 from openai import AsyncOpenAI
 
+                if self.gemini_api_key and not self.openai_api_key:
+                    api_key = self.gemini_api_key
+                    base_url = settings.OPENAI_BASE_URL or "https://generativelanguage.googleapis.com/v1beta/openai/"
+                else:
+                    api_key = self.openai_api_key or "local-model"
+                    base_url = settings.OPENAI_BASE_URL or "https://api.openai.com/v1"
+
                 client = AsyncOpenAI(
-                    api_key=self.openai_api_key or "local-model",
-                    base_url=settings.OPENAI_BASE_URL or "https://api.openai.com/v1",
+                    api_key=api_key,
+                    base_url=base_url,
                 )
                 response = await client.chat.completions.create(
                     model=target_model,
@@ -149,7 +156,7 @@ class AIGatewayService:
                 return response.choices[0].message.content or ""
             except Exception as e:
                 logger.warning(
-                    "Primary AI call via OpenAI/local endpoint failed, attempting fallback model",
+                    "Primary AI call via OpenAI/Gemini/local endpoint failed, attempting fallback model",
                     error=str(e),
                     primary_model=target_model,
                 )
@@ -238,11 +245,17 @@ class AIGatewayService:
         """
         api_key = None
         base_url = None
+        embedding_model = settings.DEFAULT_EMBEDDING_MODEL
         client_kwargs: dict[str, Any] = {}
 
         if self.portkey_client is not None:
             api_key = self.portkey_api_key
             base_url = "https://api.portkey.ai/v1"
+        elif self.gemini_api_key and not self.openai_api_key:
+            api_key = self.gemini_api_key
+            base_url = settings.OPENAI_BASE_URL or "https://generativelanguage.googleapis.com/v1beta/openai/"
+            if embedding_model == "text-embedding-3-small":
+                embedding_model = "text-embedding-004"
         elif self.openai_api_key or settings.OPENAI_BASE_URL:
             api_key = self.openai_api_key or "local-model"
             base_url = settings.OPENAI_BASE_URL or "https://api.openai.com/v1"
@@ -254,12 +267,26 @@ class AIGatewayService:
 
         client = AsyncOpenAI(api_key=api_key, base_url=base_url, **client_kwargs)
         response = await client.embeddings.create(
-            model=settings.DEFAULT_EMBEDDING_MODEL,
+            model=embedding_model,
             input=texts,
         )
         # Preserve request order defensively
         ordered = sorted(response.data, key=lambda d: d.index)
-        vectors = [item.embedding for item in ordered]
+        vectors: list[list[float]] = []
+        target_dim = settings.EMBEDDING_DIMENSION
+        for item in ordered:
+            raw_vec = list(item.embedding)
+            if len(raw_vec) < target_dim:
+                # Pad to schema dimension (e.g. 768 -> 1536) preserving unit norm
+                raw_vec = raw_vec + [0.0] * (target_dim - len(raw_vec))
+            elif len(raw_vec) > target_dim:
+                # Truncate and re-normalize if model output is larger
+                raw_vec = raw_vec[:target_dim]
+                norm = sum(x * x for x in raw_vec) ** 0.5
+                if norm > 0:
+                    raw_vec = [x / norm for x in raw_vec]
+            vectors.append(raw_vec)
+
         if len(vectors) != len(texts):
             raise RuntimeError(
                 f"Embeddings count mismatch: got {len(vectors)} for {len(texts)} inputs"
@@ -272,7 +299,12 @@ class AIGatewayService:
         # a deterministic pseudo-vector fallback so CI needs no secrets — but
         # note those vectors carry NO semantic signal; hybrid search therefore
         # also runs a lexical leg which works in every environment.
-        if self.portkey_api_key or self.openai_api_key or settings.OPENAI_BASE_URL:
+        if (
+            self.portkey_api_key
+            or self.openai_api_key
+            or self.gemini_api_key
+            or settings.OPENAI_BASE_URL
+        ):
             try:
                 return await self._embed_via_api(texts)
             except Exception as e:
