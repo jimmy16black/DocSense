@@ -85,15 +85,31 @@ async def _resolve_user_id(request: Request) -> str:
     FastAPI caches dependency results per request, so re-invoking the
     (possibly test-overridden) ``get_current_user`` callable is cheap and
     consistent with what the route itself resolves. The real implementation
-    reads the bearer token from the Starlette connection state; overrides
-    usually ignore their argument entirely.
+    reads the bearer token from the Authorization header; overrides
+    usually take no arguments.
     """
+    import inspect
     from app.core.security import get_current_user
 
     dep = request.scope["app"].dependency_overrides.get(get_current_user, get_current_user)
-    result = dep(request)
-    if hasattr(result, "__await__"):
-        result = await result
+    if dep is get_current_user:
+        auth_header = request.headers.get("Authorization")
+        result = await get_current_user(authorization=auth_header)
+    else:
+        sig = inspect.signature(dep)
+        if len(sig.parameters) == 0:
+            result = dep()
+        else:
+            first_name = next(iter(sig.parameters.keys()))
+            if "auth" in first_name.lower():
+                result = dep(request.headers.get("Authorization"))
+            else:
+                try:
+                    result = dep(request)
+                except TypeError:
+                    result = dep()
+        if hasattr(result, "__await__"):
+            result = await result
     return str(result.id)
 
 

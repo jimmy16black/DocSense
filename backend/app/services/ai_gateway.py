@@ -188,6 +188,48 @@ class AIGatewayService:
 
     def _generate_mock_completion(self, user_prompt: str) -> str:
         """Deterministic mock response for local testing and CI"""
+        if user_prompt.startswith("Question:"):
+            # Check if there is retrieved context in the prompt
+            context_section = user_prompt.split("Context:\n", 1)[-1] if "Context:\n" in user_prompt else ""
+            quote = "Document terms and specifications as outlined."
+            if "Monthly Base Rent" in context_section:
+                answer = "The monthly base rent is $12,500.00 USD, payable on the first of each month, with a security deposit of $25,000.00 USD."
+                quote = "Monthly Base Rent: Tenant covenants and agrees to pay Landlord base rent in the amount of $12,500.00 USD"
+                heading = "SECTION 2: RENT AND SECURITY DEPOSIT"
+                page = 1
+            elif "Early Termination" in context_section:
+                answer = "Early termination is permitted after 24 months with 90 days written notice and an early termination fee equal to two months rent ($25,000.00)."
+                quote = "Tenant may terminate this Lease after twenty-four (24) months by providing at least ninety (90) days written notice"
+                heading = "SECTION 3: MAINTENANCE, UTILITIES & TERMINATION"
+                page = 2
+            elif "100 Innovation Way" in context_section:
+                answer = "The property is located at Suite 400, 100 Innovation Way, San Jose, CA 95134."
+                quote = "The property located at Suite 400, 100 Innovation Way, San Jose, CA 95134"
+                heading = "SECTION 1: PREMISES & TERM"
+                page = 1
+            else:
+                answer = "Based on the document context, the specified terms are covered in the retrieved sections."
+                heading = "General Terms"
+                page = 1
+
+            return json.dumps(
+                {
+                    "answer": answer,
+                    "confidence": "HIGH",
+                    "suggestedFollowUps": [
+                        "What are the renewal terms?",
+                        "What insurance coverage is required?",
+                    ],
+                    "citations": [
+                        {
+                            "pageNumber": page,
+                            "sectionHeading": heading,
+                            "exactQuote": quote,
+                        }
+                    ],
+                }
+            )
+
         return json.dumps(
             {
                 "documentType": "INSURANCE_POLICY",
